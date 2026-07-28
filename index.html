@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="小李的工作台">
 <title>小李的工作台</title>
-<link rel="manifest" href="manifest.json?v=20260728c">
-<link rel="stylesheet" href="style.css?v=20260728c">
+<link rel="manifest" href="manifest.json?v=20260729y">
+<link rel="stylesheet" href="style.css?v=20260729y">
 </head>
 <body>
 <header id="topbar">
@@ -35,7 +35,7 @@
       <div id="fact-list" class="fact-list"></div>
     </div>
     <div class="card thumb-card">
-      <div class="card-title">生活速览</div>
+      <div class="card-title">生活速览 <button class="mini-btn" id="home-thumb-pick">选择模块</button></div>
       <div id="home-thumbs" class="home-thumbs"></div>
     </div>
   </section>
@@ -46,6 +46,7 @@
       <nav class="side-nav" id="study-nav">
         <button class="fold-btn" id="study-fold">‹</button>
         <div class="nav-scroll" id="study-cats"></div>
+        <button class="mini-btn" id="study-new-cat">+ 新建项目</button>
       </nav>
       <div class="main-work" id="study-main">
         <div class="module-head" id="module-head">
@@ -117,7 +118,7 @@
     <div class="card">
       <div class="card-title">个性化设置</div>
       <div class="set-row"><span>图标风格</span>
-        <select id="set-icon"><option value="guofeng">国风水墨</option><option value="oil">油画小花</option></select>
+        <select id="set-icon"><option value="guofeng">国风水墨</option><option value="oil">油画小花</option><option value="weiding">未定事件簿</option></select>
       </div>
       <div class="set-row"><span>界面字体</span>
         <select id="set-font">
@@ -132,6 +133,7 @@
       <div class="set-row"><span>主页顶部背景</span><button class="mini-btn" id="set-homebg">设置</button></div>
       <div class="set-row"><span>降雨带伞提醒</span><input type="checkbox" id="set-rain"></div>
       <div class="set-row"><span>主页显示生活速览</span><input type="checkbox" id="set-thumbs" checked></div>
+      <div class="set-row"><span>重点标注颜色</span><button class="mini-btn" id="set-hlcolor">取色</button></div>
       <div class="set-row set-tabs-row"><span>显示栏目</span>
         <label><input type="checkbox" class="set-tab" value="study" checked> 学习</label>
         <label><input type="checkbox" class="set-tab" value="ent" checked> 娱乐</label>
@@ -154,6 +156,6 @@
 <div id="toast"></div>
 <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
 
-<script src="app.js?v=20260728c"></script>
+<script src="app.js?v=20260729y"></script>
 </body>
 </html>
