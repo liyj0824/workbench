@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#7b9a73">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="小李的工作台">
+<title>小李的工作台</title>
+<link rel="manifest" href="manifest.json?v=20260728c">
+<link rel="stylesheet" href="style.css?v=20260728c">
+</head>
+<body>
+<header id="topbar">
+  <span id="top-title">小李的工作台</span>
+  <span id="save-state" class="saved">已保存</span>
+</header>
+
+<main id="screen">
+  <!-- ============ 主页 ============ -->
+  <section class="page" data-page="home">
+    <div class="home-quote" id="home-quote">
+      <div id="home-quote-text">—— 每日寄语 ——</div>
+      <div id="home-quote-explain" class="home-quote-explain"></div>
+    </div>
+    <div class="card math-card">
+      <div class="card-title">今日口算 <button class="mini-btn" id="math-refresh">换一组</button></div>
+      <div id="math-grid" class="math-grid"></div>
+      <p class="hint">点击题目显示答案</p>
+    </div>
+    <div class="card fact-card">
+      <div class="card-title">每日资料卡 <button class="mini-btn" id="fact-refresh">换一批</button></div>
+      <div id="fact-list" class="fact-list"></div>
+    </div>
+    <div class="card thumb-card">
+      <div class="card-title">生活速览</div>
+      <div id="home-thumbs" class="home-thumbs"></div>
+    </div>
+  </section>
+
+  <!-- ============ 学习 ============ -->
+  <section class="page" data-page="study" hidden>
+    <div class="layout">
+      <nav class="side-nav" id="study-nav">
+        <button class="fold-btn" id="study-fold">‹</button>
+        <div class="nav-scroll" id="study-cats"></div>
+      </nav>
+      <div class="main-work" id="study-main">
+        <div class="module-head" id="module-head">
+          <span id="module-name">请选择模块</span>
+          <span class="module-dot" id="module-dot"></span>
+        </div>
+        <div class="phase-tabs">
+          <button class="phase active" data-phase="basic">基础学习</button>
+          <button class="phase" data-phase="improve">提升阶段</button>
+        </div>
+        <button class="btn-primary" id="study-add">+ 新建（基础/提升）</button>
+        <ul class="item-list" id="study-list"></ul>
+        <div class="color-row">
+          <span>状态栏/选项卡颜色</span>
+          <button class="mini-btn" id="study-color">取色</button>
+          <span class="swatches" id="study-swatches"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 娱乐 ============ -->
+  <section class="page" data-page="ent" hidden>
+    <div class="sub-tabs">
+      <button class="sub active" data-sub="novel">小说</button>
+      <button class="sub" data-sub="insp">灵感</button>
+    </div>
+    <div id="ent-novel">
+      <div class="layout">
+        <nav class="side-nav" id="novel-nav">
+          <button class="fold-btn" id="novel-fold">‹</button>
+          <div class="nav-scroll" id="novel-filters"></div>
+          <button class="mini-btn" id="n-tag-manage" style="margin:8px 10px 12px;">标签管理</button>
+        </nav>
+        <div class="main-work" id="novel-main">
+          <div class="search-bar">
+            <input type="text" id="novel-search" placeholder="搜索小说名称…">
+          </div>
+          <ul class="item-list" id="novel-list"></ul>
+          <button class="btn-primary" id="n-add">+ 添加小说</button>
+        </div>
+      </div>
+    </div>
+    <div id="ent-insp" hidden>
+      <div class="card">
+        <div class="card-title">添加灵感</div>
+        <input id="insp-title" placeholder="灵感标题">
+        <button class="btn-primary" id="insp-add">新建条目</button>
+      </div>
+      <ul class="item-list" id="insp-list"></ul>
+    </div>
+  </section>
+
+  <!-- ============ 生活 ============ -->
+  <section class="page" data-page="life" hidden>
+    <div class="layout">
+      <nav class="side-nav" id="life-nav">
+        <button class="fold-btn" id="life-fold">‹</button>
+        <div class="nav-scroll" id="life-feats"></div>
+      </nav>
+      <div class="main-work" id="life-main">
+        <div id="life-detail"><p class="hint">从左侧选择功能</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 个性化 ============ -->
+  <section class="page" data-page="settings" hidden>
+    <div class="card">
+      <div class="card-title">个性化设置</div>
+      <div class="set-row"><span>图标风格</span>
+        <select id="set-icon"><option value="guofeng">国风水墨</option><option value="oil">油画小花</option></select>
+      </div>
+      <div class="set-row"><span>界面字体</span>
+        <select id="set-font">
+          <option value="slimgold">瘦金体</option>
+          <option value="song" selected>宋体</option>
+          <option value="fang">仿宋</option>
+          <option value="kai">楷体</option>
+        </select>
+      </div>
+      <div class="set-row"><span>全局背景</span><button class="mini-btn" id="set-globalbg">设置</button></div>
+      <div class="set-row"><span>底部导航选中色</span><button class="mini-btn" id="set-navcolor">取色</button></div>
+      <div class="set-row"><span>主页顶部背景</span><button class="mini-btn" id="set-homebg">设置</button></div>
+      <div class="set-row"><span>降雨带伞提醒</span><input type="checkbox" id="set-rain"></div>
+      <div class="set-row"><span>主页显示生活速览</span><input type="checkbox" id="set-thumbs" checked></div>
+      <div class="set-row set-tabs-row"><span>显示栏目</span>
+        <label><input type="checkbox" class="set-tab" value="study" checked> 学习</label>
+        <label><input type="checkbox" class="set-tab" value="ent" checked> 娱乐</label>
+        <label><input type="checkbox" class="set-tab" value="life" checked> 生活</label>
+      </div>
+      <div class="set-row set-backup-row"><span>数据备份</span>
+        <button class="mini-btn" id="set-export">导出数据</button>
+        <button class="mini-btn" id="set-import">导入数据</button>
+        <input type="file" id="set-import-file" accept=".json,application/json" hidden>
+      </div>
+      <p class="hint">换新链接/新设备时：旧页面点「导出数据」保存文件，新页面点「导入数据」选择该文件即可搬家。</p>
+      <button class="mini-btn danger" id="set-clear">清空全部数据</button>
+      <p class="hint">数据仅保存在本机浏览器，不会上传。</p>
+    </div>
+  </section>
+</main>
+
+<nav id="bottombar"></nav>
+
+<div id="toast"></div>
+<div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
+
+<script src="app.js?v=20260728c"></script>
+</body>
+</html>
