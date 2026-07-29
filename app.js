@@ -678,11 +678,48 @@
     row.appendChild(inp); row.appendChild(btn); container.appendChild(row);
     if (pool.length) {
       var cand = document.createElement("div"); cand.className = "tag-sel"; cand.style.marginTop = "6px";
-      pool.forEach(function (t) {
+      /* 标题行 */
+      var titleRow = document.createElement("div");
+      titleRow.style.cssText = "font-size:11px;color:#8a887d;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;";
+      titleRow.innerHTML = '<span>\u5DF2\u5B58\u6807\u7B7E (' + pool.length + ')</span>';
+      cand.appendChild(titleRow);
+      pool.forEach(function (t, ti) {
         if (selected.indexOf(t) >= 0) return;
+        var row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:4px;margin:2px 0;";
+        /* 点选按钮 */
         var p = document.createElement("span"); p.className = "tagpill"; p.style.cursor = "pointer"; p.style.opacity = ".8"; p.textContent = "+ " + t;
         p.onclick = function () { if (selected.indexOf(t) < 0) selected.push(t); Store.save(); createTagControl(container, pool, selected, opts); };
-        cand.appendChild(p);
+        row.appendChild(p);
+        /* 改名按钮 */
+        var renBtn = document.createElement("button");
+        renBtn.className = "mini-btn"; renBtn.textContent = "\u6539"; renBtn.title = "\u4FEE\u6539\u6807\u7B7E\u540D";
+        renBtn.style.cssText = "padding:1px 6px;font-size:11px;line-height:1;";
+        renBtn.onclick = function (e) { e.stopPropagation();
+          var newName = prompt("\u4FEE\u6539\u6807\u7B7E\u300C" + t + "\u300D\u4E3A\uFF1A", t);
+          if (newName && newName.trim() && newName.trim() !== t) {
+            var nn = newName.trim();
+            /* 更新池中 */
+            pool[ti] = nn;
+            /* 更新已选中同名的 */
+            for (var si = 0; si < selected.length; si++) {
+              if (selected[si] === t) selected[si] = nn;
+            }
+            Store.save(); createTagControl(container, pool, selected, opts);
+          }
+        };
+        row.appendChild(renBtn);
+        /* 删除按钮 */
+        var delBtn = document.createElement("button");
+        delBtn.className = "mini-btn danger"; delBtn.textContent = "\u5220"; delBtn.title = "\u5220\u9664\u6807\u7B7E";
+        delBtn.style.cssText = "padding:1px 6px;font-size:11px;line-height:1;";
+        delBtn.onclick = function (e) { e.stopPropagation();
+          if (!confirm("\u786E\u8BA4\u5220\u9664\u6807\u7B7E\u300C" + t + "\u300D\uFF1F")) return;
+          pool.splice(ti, 1);
+          Store.save(); createTagControl(container, pool, selected, opts);
+        };
+        row.appendChild(delBtn);
+        cand.appendChild(row);
       });
       container.appendChild(cand);
     }
@@ -2480,37 +2517,53 @@
       var sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = p.color;
       sw.onclick = function () { setPhaseColor(p.key, p.color); }; $("study-swatches").appendChild(sw);
     });
-        /* 动态字段列表渲染 */
+        /* 列表渲染 —— 按字段定义顺序依次显示，不猜测 */
     var ul = $("study-list"); ul.innerHTML = "";
     var list = curPhaseRecords();
     var phaseFields = cp.fields || getDefaultPhaseFields(m, cp);
     list.forEach(function (it) {
       var li = document.createElement("li");
-      var titleText = "";
-      var metaParts = [];
-      var bodyHtml = "";
-      var photosHtml = "";
+      /* 竖列显示：按字段定义顺序，每字段一行，左对齐 */
+      var rows = [];
       phaseFields.forEach(function(f) {
         var val = it[f.key];
-        if (val == null) val = "";
-        var sVal = String(val);
-        if (f.type === "date") {
-          metaParts.push(esc(sVal));
-        } else if (f.type === "text") {
-          if (!titleText) titleText = sVal || f.label;
-        } else if (f.type === "number") {
-          if (sVal) metaParts.push(esc(f.label) + " " + esc(sVal));
-        } else if (f.type === "status") {
-          if (sVal) metaParts.push(esc(sVal));
-        } else if (f.type === "note") {
-          if (sVal) bodyHtml += '<div class="it-body">' + esc(sVal) + "</div>";
+        if (val == null || val === undefined || String(val).trim() === "") {
+          /* 尝试已知旧版 key 做兼容（仅一次，不猜测） */
+          var legacyMap = {
+            "text": ["subject", "bookName", "basicSubject", "improveSubject", "title", "name", "courseName", "itemName"],
+            "number": ["no", "basicNo", "chapterNo", "improveChapter", "pageNo", "num", "seq"],
+            "status": ["progress", "basicProgress"]
+          };
+          var candidates = legacyMap[f.type] || [];
+          var found = false;
+          for (var ci = 0; ci < candidates.length; ci++) {
+            if (it[candidates[ci]] != null && String(it[candidates[ci]]).trim()) {
+              val = it[candidates[ci]]; found = true; break;
+            }
+          }
+          if (!found) { val = ""; }
+        }
+        var sVal = (val != null) ? String(val).trim() : "";
+        if (f.type === "note") return; /* 笔记单独处理 */
+        var dispVal = sVal;
+        if (f.type === "number" && sVal) {
+          dispVal = sVal.length < 2 ? "0" + sVal : sVal;
+        }
+        if (!dispVal) dispVal = "\u2014"; /* 空值显示 — */
+        rows.push('<div class="it-row"><span class="it-flabel">' + esc(f.label) + '</span><span class="it-fval">' + esc(dispVal) + '</span></div>');
+      });
+      var titleHtml = rows.join("");
+      if (!titleHtml) titleHtml = '<div class="it-row"><span style="color:#bbb">\u8BB0\u5F55</span></div>';
+      /* 笔记和照片 */
+      var bodyHtml = "", photosHtml = "";
+      phaseFields.forEach(function(f) {
+        var val = it[f.key];
+        if (f.type === "note" && val && String(val).trim()) {
+          bodyHtml += '<div class="it-body">' + esc(String(val).trim()) + "</div>";
         }
       });
-      /* 照片（兼容旧数据） */
       if (it.photos && it.photos.length) photosHtml = '<div class="photos">' + it.photos.map(function(p){return '<img src="'+esc(p)+'">';}).join("")+"</div>";
-      if (!titleText) titleText = "记录";
-      li.innerHTML = '<div class="it-title">' + esc(titleText) + '</div>'
-        + (metaParts.length ? '<div class="it-meta">' + metaParts.join("　") + '</div>' : '')
+      li.innerHTML = '<div class="it-title">' + titleHtml + '</div>'
         + bodyHtml
         + photosHtml
         + '<div class="it-actions"><button data-act="edit">编辑</button><button data-act="del" class="del">删除</button></div>';
@@ -2652,10 +2705,12 @@
             var tcEl = document.getElementById("sf-text-" + fi);
             if (f.memo === false) {
               obj[f.key] = tcEl ? (tcEl.value || "").trim() : "";
-            } else {
-              var tags = tcEl ? tcEl.querySelectorAll(".tagchip") : [];
+          } else {
+              /* 标签控件：从已选区域读取 tagpill（不是 tagchip！） */
+              var selWrap = tcEl ? tcEl.querySelector(".tag-sel") : null;
+              var chips = selWrap ? selWrap.querySelectorAll(".tagpill") : [];
               var textVal = [];
-              tags.forEach(function(t) { textVal.push(t.getAttribute("data-val") || t.textContent); });
+              chips.forEach(function(t) { var txt = t.textContent.replace(/\s*\u00D7\s*$/, "").trim(); if (txt) textVal.push(txt); });
               obj[f.key] = textVal.join("") || "";
               saveToTagPool(f.key, obj[f.key]);
             }
@@ -2777,8 +2832,26 @@
         if (f.type === "status" && f.options) {
           optsHtml += '<span style="font-size:11px;color:#888;">(' + f.options.join("/") + ')</span><button class="mini-btn" id="feopts-' + fi + '" style="padding:1px 6px;font-size:11px;">编辑</button>';
         }
-        row.innerHTML = '<span style="cursor:move;color:#aaa;" title="拖动">:::</span> ' + typeBadge + ' ' + labelHtml + ' ' + optsHtml + ' <button class="mini-btn danger" data-fdel="' + fi + '" style="padding:1px 6px;font-size:11px;">删</button>';
+        row.setAttribute("draggable", "true");
+        row.setAttribute("data-fi", fi);
+        row.innerHTML = '<span style="cursor:grab;color:#aaa;" title="拖动排序">:::</span> ' + typeBadge + ' ' + labelHtml + ' ' + optsHtml + ' <button class="mini-btn danger" data-fdel="' + fi + '" style="padding:1px 6px;font-size:11px;">删</button>';
         box.appendChild(row);
+        /* 拖动排序 */
+        row.ondragstart = function (e) { e.dataTransfer.setData("text/fi", fi); this.style.opacity = "0.4"; };
+        row.ondragend = function () { this.style.opacity = ""; };
+        row.ondragover = function (e) { e.preventDefault(); this.style.borderTop = "2px solid #5f7a5a"; };
+        row.ondragleave = function () { this.style.borderTop = ""; };
+        row.ondrop = function (e) {
+          e.preventDefault();
+          this.style.borderTop = "";
+          var fromFi = parseInt(e.dataTransfer.getData("text/fi"));
+          var toFi = parseInt(this.getAttribute("data-fi"));
+          if (fromFi !== toFi && !isNaN(fromFi) && !isNaN(toFi)) {
+            var moved = fields.splice(fromFi, 1)[0];
+            fields.splice(toFi, 0, moved);
+            renderFieldList();
+          }
+        };
         row.querySelector("[data-fdel]").onclick = function () { fields.splice(parseInt(this.getAttribute("data-fdel")), 1); renderFieldList(); };
         row.querySelector("#felabel-" + fi).onchange = function () { fields[fi].label = this.value.trim() || fields[fi].label; };
         var memoChk = document.getElementById("fememo-" + fi);

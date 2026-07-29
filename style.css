@@ -332,7 +332,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--g
   background: var(--cream); border: none; border-radius: 18px; padding: 14px;
   position: relative; box-shadow: var(--shadow-sm);
 }
-.it-title { font-size: 15px; font-weight: 600; margin-bottom: 5px; padding-right: 70px; color: var(--green-dark); }
+.it-title { font-size: 14px; margin-bottom: 5px; padding-right: 70px; color: var(--green-dark); }
+.it-row { display: flex; align-items: baseline; gap: 8px; line-height: 1.7; }
+.it-flabel { color: #8a887d; font-size: 12px; white-space: nowrap; min-width: 56px; flex-shrink: 0; }
+.it-fval { color: var(--ink); font-size: 14px; font-weight: 500; }
 .it-meta { font-size: 12px; color: #8a887d; margin-bottom: 6px; }
 .it-body { font-size: 14px; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
 .it-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
