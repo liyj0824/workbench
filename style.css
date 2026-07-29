@@ -136,6 +136,35 @@ body {
 .math-grid .mq .ans { display: none; color: var(--red); font-weight: 600; margin-left: 4px; }
 .math-grid .mq.revealed .ans { display: inline; }
 .fact-list { display: flex; flex-direction: column; gap: 10px; }
+.fact-section { border-top: 1px dashed #d4cbb8; padding-top: 10px; }
+.fact-section:first-child { border-top: none; padding-top: 0; }
+
+/* 阶段设置 - 卡片式选择 */
+.phase-opt-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: #faf8f3;
+  border: 2px solid #e8e0d0; border-radius: 12px;
+  cursor: pointer; transition: all .2s ease; user-select: none;
+}
+.phase-opt-card:hover { border-color: #c4b89a; background: #f5f1e8; }
+.phase-opt-card:has(input:checked) {
+  border-color: var(--green-deep); background: #f0f7f0;
+  box-shadow: 0 0 0 2px rgba(106,153,117,.15);
+}
+.phase-opt-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid #bbb; flex-shrink: 0;
+  transition: all .2s ease;
+}
+.phase-opt-card:has(input:checked) .phase-opt-dot {
+  border-color: var(--green-deep);
+  background: var(--green-deep);
+  box-shadow: inset 0 0 0 3px #fff;
+}
+.phase-opt-text { flex: 1; font-size: 14px; color: #4a4a4a; }
+.phase-opt-text strong { color: #333; font-weight: 600; }
+.phase-opt-text span { margin: 0 4px; color: #aaa; }
+.phase-opt-hint { font-size: 11px; color: #999; margin-top: 1px; }
 .fact-item {
   background: var(--cream); border-radius: 16px; padding: 11px 13px;
   display: flex; gap: 10px; font-size: 14px; line-height: 1.6; align-items: flex-start;
