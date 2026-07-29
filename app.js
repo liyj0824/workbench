@@ -2,6 +2,76 @@
 (function () {
   "use strict";
   var KEY = "workbench_v2_spec";
+  var SEEN_TIPS_KEY = "workbench_seen_tips_v1";
+  var AUTO_BACKUP_KEY = "workbench_auto_backup";
+  /* 自动备份：每次保存数据时，额外存一份到独立 key，用于检测数据丢失 */
+  var _lastBackupHash = "";
+  function getDataHash(d) {
+    var parts = [];
+    if (d.life) {
+      parts.push("m" + (d.life.memo ? d.life.memo.length : 0));
+      parts.push("w" + (d.life.weight ? d.life.weight.length : 0));
+      parts.push("n" + (d.ent && d.ent.novels ? d.ent.novels.length : 0));
+      parts.push("p" + (d.life.period && d.life.period.records ? d.life.period.records.length : 0));
+      parts.push("a" + (d.life.accounts && d.life.accounts.entries ? d.life.accounts.entries.length : 0));
+    }
+    return parts.join("-");
+  }
+  function saveAutoBackup() {
+    try {
+      var h = getDataHash(Store.data);
+      if (h === _lastBackupHash) return; /* 数据没变，不重复写 */
+      _lastBackupHash = h;
+      var backup = { data: Store.data.dataVersion ? Store.data : clone(Store.data), hash: h, time: new Date().toISOString(), v: 1 };
+      /* 只保留最近数据量信息用于比对 */
+      backup.meta = { memos: (Store.data.life.memo || []).length, weight: (Store.data.life.weight || []).length, novels: (Store.data.ent && Store.data.ent.novels || []).length };
+      localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(backup));
+    } catch(e) { console.warn("auto-backup failed", e); }
+  }
+  function checkDataLossAndRecover() {
+    try {
+      var raw = localStorage.getItem(AUTO_BACKUP_KEY);
+      if (!raw) return false;
+      var ab = JSON.parse(raw);
+      if (!ab || !ab.meta || !ab.data) return false;
+      var curMemos = (Store.data.life.memo || []).length;
+      var curWeight = (Store.data.life.weight || []).length;
+      var curNovels = (Store.data.ent && Store.data.ent.novels || []).length;
+      /* 如果备份里有数据但当前是空的（或接近空），说明可能被重置了 */
+      var hadData = (ab.meta.memos > 0 || ab.meta.weight > 0 || ab.meta.novels > 0);
+      var nowEmpty = (curMemos <= 0 && curWeight <= 0 && curNovels <= 0);
+      if (hadData && nowEmpty) {
+        var bt = ab.time || "";
+        var timeStr = "";
+        try { var td = new Date(bt); timeStr = td.getMonth()+1+"/"+td.getDate()+" "+("0"+td.getHours()).slice(-2)+":"+("0"+td.getMinutes()).slice(-2); } catch(e) { timeStr = bt; }
+        var recoverHtml = ''
+          + '<h3 style="margin:0 0 8px;color:#b00020;">\u26A0\uFE0F \u68C0\u6D4B\u5230\u6570\u636E\u53EF\u80FD\u88AB\u91CD\u7F6E</h3>'
+          + '<p class="hint">\u4F60\u7684\u5DE5\u4F5C\u53F0\u6570\u636E\u4F3C\u4E4E\u88AB\u6E05\u7A7A\u4E86\uFF08\u5907\u5FD8/\u4F53\u91CD/\u5C0F\u8BF4\u5747\u4E3A\u7A7A\uFF09\u3002</p>'
+          + '<div style="background:#fff8e1;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;">'
+          + '<b>\u81EA\u52A8\u5907\u4EFD\u65F6\u95F4</b>\uFF1A' + timeStr + '<br>'
+          + '<b>\u5907\u4EFD\u5185\u5BB9</b>\uFF1A\u5907\u5FD8 ' + ab.meta.memos + ' \u6761 \u00B7 \u4F53\u91CD ' + ab.meta.weight + ' \u6761 \u00B7 \u5C0F\u8BF4 ' + ab.meta.novels + ' \u90E8'
+          + '</div>'
+          + '<p class="hint" style="font-size:12px;">\u53EF\u80FD\u539F\u56FE\uFF1A\u6D4F\u89C8\u5668\u6E05\u9664\u7F13\u5B58/PWA\u91CD\u65B0\u5B89\u88C5/\u624B\u673A\u7CFB\u7EDF\u5386\u53F2\u6E05\u7406</p>'
+          + '<div style="text-align:right;margin-top:10px;"><button class="btn-primary" id="recover-yes" style="margin-right:8px;">\u6062\u590D\u5907\u4EFD</button><button class="mini-btn" id="recover-no">\u7565\u8FC7</button></div>';
+        openModal(recoverHtml);
+        $("recover-yes").onclick = function () {
+          closeModal();
+          localStorage.setItem(KEY, JSON.stringify(ab.data));
+          Store.load();
+          normalizeLifeSelection();
+          applyBg(document.body, Store.data.settings.globalBg);
+          applyFont();
+          applyMemoPriorityColors();
+          applyHighlightColor();
+          renderBottomNav(); renderHome();
+          toast("\u5DF2\u4ECE\u81EA\u52A8\u5907\u4EFD\u6062\u590D\u6570\u636E");
+        };
+        $("recover-no").onclick = closeModal;
+        return true;
+      }
+    } catch(e) { console.warn("data-loss check failed", e); }
+    return false;
+  }
 
   /* ============ 工具 ============ */
   function $(id) { return document.getElementById(id); }
@@ -58,20 +128,64 @@
   /* ============ 默认数据 ============ */
   function defaultModules() {
     var names = ["言语理解与表达", "数量关系", "判断推理", "资料分析", "常识判断", "申论"];
-    /* 莫兰迪淡绿 / 青色系，低饱和柔和 */
     var pal = ["#a9c4b5", "#bcd3cb", "#aec9cf", "#bcd0c0", "#b0cdd6", "#c3d7c8"];
     return names.map(function (n, i) {
-      return { name: n, barColor: pal[i], basicColor: pal[i], improveColor: pal[(i + 2) % pal.length], basic: [], improve: [] };
+      return {
+        name: n,
+        barColor: pal[i],
+        phases: [
+          { key: "p1", name: "基础学习", color: pal[i] },
+          { key: "p2", name: "提升阶段", color: pal[(i + 2) % pal.length] }
+        ],
+        records: { p1: [], p2: [] },
+        fieldLabels: null
+      };
     });
   }
   function defaultData() {
     return {
-      settings: { iconStyle: "oil", globalBg: null, navColor: "#8fa382", homeBg: null, rainAlert: false, showThumbs: true, fontStyle: "song", hiddenTabs: [], memoPriorityColors: null, highlightColor: "#c8e0db" },
+      settings: { iconStyle: "oil", globalBg: null, navColor: "#8fa382", homeBg: null, rainAlert: false, showThumbs: true, fontStyle: "song", hiddenTabs: [], memoPriorityColors: null, highlightColor: "#c8e0db", seenTips: false, quickAddVisible: true, quickAddHiddenBtns: [] },
       customHighlights: {},
       study: {
         categories: [{ name: "公考", modules: defaultModules() }],
         basicTagPool: { subject: [] },
-        improveTagPool: { bookName: [] }
+        improveTagPool: { bookName: [] },
+        /* 新版：全局标签记忆池（按字段key索引） */
+        studyTagPools: {},
+        /* 字段模板库 */
+        fieldTemplates: [
+          {
+            name: "\u57FA\u7840\u5B66\u4E60\uFF08\u89C6\u9891\u8BFE\uFF09",
+            desc: "\u9002\u5408\u770B\u89C6\u9891\u8BBE\u3001\u7F51\u8BFE",
+            fields: [
+              { key: "date", type: "date", label: "\u65E5\u671F" },
+              { key: "courseName", type: "text", label: "\u8BFE\u7A0B\u540D\u79F0" },
+              { key: "lessonNo", type: "number", label: "\u8BFE\u7A0B\u5E8F\u53F7" },
+              { key: "note", type: "note", label: "\u7B14\u8BB0" }
+            ]
+          },
+          {
+            name: "\u63D0\u5347\u9636\u6BB5\uFF08\u505A\u9898\uFF09",
+            desc: "\u9002\u5408\u505A\u8BD5\u5377\u3001\u7EC3\u4E60\u518C",
+            fields: [
+              { key: "date", type: "date", label: "\u65E5\u671F" },
+              { key: "paperName", type: "text", label: "\u8BD5\u5377\u540D\u79F0" },
+              { key: "chapterNo", type: "number", label: "\u7AE0\u8282\u5E8F\u53F7" },
+              { key: "pageRange", type: "text", label: "\u9875\u7801", memo: false },
+              { key: "status", type: "status", label: "\u72B6\u6001", options: ["\u5F85\u6279\u6539", "\u521D\u6B21\u6279\u6539\uFF0C\u672A\u590D\u4E60", "\u5DF2\u590D\u4E60"] },
+              { key: "note", type: "note", label: "\u7B14\u8BB0" }
+            ]
+          },
+          {
+            name: "\u901A\u7528\u7B80\u5355\u7248",
+            desc: "\u53EA\u6709\u65E5\u671F\u3001\u540D\u79F0\u548C\u7B14\u8BB0",
+            fields: [
+              { key: "date", type: "date", label: "\u65E5\u671F" },
+              { key: "itemName", type: "text", label: "\u540D\u79F0" },
+              { key: "note", type: "note", label: "\u7B14\u8BB0" }
+            ]
+          }
+        ]
       },
       ent: {
         tagPools: { perspective: ["主攻", "主受", "双视角"], progress: ["正在阅读中", "已读完"], plot: [], author: [] },
@@ -237,6 +351,7 @@
       if (ss) { ss.className = "saving"; ss.textContent = "保存中…"; }
       try {
         localStorage.setItem(KEY, JSON.stringify(this.data));
+        saveAutoBackup();
         if (ss) { ss.className = "saved"; ss.textContent = "已保存"; }
         return true;
       } catch (e) {
@@ -1762,6 +1877,136 @@
     renderMathGrid();
     renderFactList();
     renderHomeThumbs();
+    applyQuickAddVisibility();
+  }
+  function applyQuickAddVisibility() {
+    var card = $("quick-add-card");
+    if (!card) return;
+    var s = Store.data.settings;
+    var hidden = s.quickAddHiddenBtns || [];
+    /* 整个卡片显示/隐藏 */
+    card.style.display = s.quickAddVisible !== false ? "" : "none";
+    /* 各按钮显示/隐藏 */
+    var btnMap = { "qa-memo": "memo", "qa-weight": "weight", "qa-period": "period", "qa-account": "account" };
+    Object.keys(btnMap).forEach(function(id) {
+      var el = $(id);
+      if (el) el.style.display = hidden.indexOf(btnMap[id]) >= 0 ? "none" : "";
+    });
+  }
+  function openQuickAddSettings() {
+    var s = Store.data.settings;
+    var hidden = s.quickAddHiddenBtns || [];
+    var items = [
+      { id: "memo", label: "\u5907\u5FD8" },
+      { id: "weight", label: "\u4F53\u91CD" },
+      { id: "period", label: "\u7ECF\u671F" },
+      { id: "account", label: "\u8BB0\u8D26" }
+    ];
+    var html = ''
+      + '<h3 style="margin:0 0 10px;">\u5FEB\u901F\u8BB0\u4E00\u7B14 \u8BBE\u7F6E</h3>'
+      + '<div style="margin-bottom:10px;"><label><input type="checkbox" id="qa-show-card"' + (s.quickAddVisible !== false ? " checked" : "") + '> \u663E\u793A\u201C\u5FEB\u901F\u8BB0\u4E00\u7B14\u201D\u5361\u7247</label></div>'
+      + '<p class="hint" style="font-size:13px;">\u52FE\u9009\u8981\u663E\u793A\u7684\u6309\u94AE\uFF08\u53D6\u6D88\u52FE\u9009\u5219\u9690\u85CF\uFF09:</p>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+    items.forEach(function(it) {
+      html += '<label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:#f8f6f1;border-radius:6px;cursor:pointer;"><input type="checkbox" data-qa-btn="' + it.id + '"' + (hidden.indexOf(it.id) < 0 ? " checked" : "") + '> ' + it.label + '</label>';
+    });
+    html += '</div><div style="text-align:right;margin-top:12px;"><button class="btn-primary" id="qa-set-ok">\u786E\u5B9A</button></div>';
+    openModal(html);
+    $("qa-set-ok").onclick = function () {
+      s.quickAddVisible = $("qa-show-card").checked;
+      var newHidden = [];
+      document.querySelectorAll("[data-qa-btn]").forEach(function(cb) {
+        if (!cb.checked) newHidden.push(cb.getAttribute("data-qa-btn"));
+      });
+      s.quickAddHiddenBtns = newHidden;
+      Store.save(); closeModal(); applyQuickAddVisibility(); toast("\u5DF2\u4FDD\u5B58");
+    };
+  }
+  /* 首页快速记一笔 */
+  function openQuickMemo() {
+    var html = ''
+      + '<h3 style="margin:0 0 10px;">\u5FEB\u901F\u8BB0\u5907\u5FD8</h3>'
+      + '<div class="row"><label>\u6807\u9898</label><input id="qm-title" placeholder="\u5FEB\u5199\u4E00\u53E5"></div>'
+      + '<div class="row"><label>\u4E18\u9500\u7EA7</label><select id="qm-pri">' + MEMO_PRIORITY.map(function(x){return '<option value="'+x.key+'">'+x.name+'</option>';}).join('') + '</select></div>'
+      + '<textarea id="qm-content" placeholder="\u5185\u5BB9\uFF08\u9009\u586B\uFF09" style="width:100%;height:60px;border-radius:8px;border:1px solid #ccc;padding:6px;font-size:14px;font-family:var(--font-song);resize:none;box-sizing:border-box;"></textarea>'
+      + '<div style="text-align:right;margin-top:10px;"><button class="btn-primary" id="qm-save">\u4FDD\u5B58</button><button class="mini-btn" id="qm-cancel">\u53D6\u6D88</button></div>';
+    openModal(html);
+    $("qm-cancel").onclick = closeModal;
+    $("qm-save").onclick = function () {
+      var title = ($("qm-title").value || "").trim();
+      if (!title) { toast("\u8BF7\u586B\u5199\u6807\u9898"); return; }
+      Store.data.life.memo.unshift({ id: uid(), title: title, priority: $("qm-pri").value || "ninu", date: todayStr(), content: ($("qm-content").value || "").trim(), items: [] });
+      Store.save(); closeModal(); renderHome(); toast("\u5907\u5FD8\u5DF2\u8BB0");
+    };
+    /* 自动聚焦标题输入框 */
+    setTimeout(function () { var t = $("qm-title"); if (t) t.focus(); }, 200);
+  }
+  function openQuickWeight() {
+    var unit = Store.data.life.weightUnit || "jin";
+    var ulabel = unit === "jin" ? "\u65A4" : "kg";
+    var ph = unit === "jin" ? "120" : "60";
+    var html = ''
+      + '<h3 style="margin:0 0 10px;">\u5FEB\u901F\u8BB0\u4F53\u91CD</h3>'
+      + '<div class="row"><label>\u65E5\u671F</label><span id="qw-date-disp" class="date-disp">' + todayStr() + '</span></div>'
+      + '<div class="row"><label>\u4F53\u91CD（' + ulabel + '）</label><input type="number" id="qw-v" placeholder="' + ph + '" style="width:120px;"></div>'
+      + '<div style="text-align:right;margin-top:10px;"><button class="btn-primary" id="qw-save">\u8BB0\u5F55</button><button class="mini-btn" id="qw-cancel">\u53D6\u6D88</button></div>';
+    openModal(html);
+    $("qw-cancel").onclick = closeModal;
+    $("qw-save").onclick = function () {
+      var v = parseFloat($("qw-v").value);
+      if (isNaN(v)) { toast("\u8BF7\u8F93\u5165\u4F53\u91CD"); return; }
+      Store.data.life.weight.push({ id: uid(), date: todayStr(), v: v, unit: unit });
+      Store.save(); closeModal(); renderHome(); renderHomeThumbs(); toast("\u4F53\u91CD\u5DF2\u8BB0\uFF1A" + v + " " + ulabel);
+    };
+    setTimeout(function () { var t = $("qw-v"); if (t) t.focus(); }, 200);
+  }
+  function openQuickPeriod() {
+    var html = ''
+      + '<h3 style="margin:0 0 10px;">\u5FEB\u901F\u8BB0\u7ECF\u671F</h3>'
+      + '<div class="row"><label>\u5F00\u59CB\u65E5\u671F</label><span id="qp-start-disp" class="date-disp">' + todayStr() + '</span><button class="mini-btn" id="qp-start-pick">\u9009\u62E9</button></div>'
+      + '<p class="hint" style="font-size:12px;">\u4EC5\u8BB0\u5F55\u5F00\u59CB\u65E5\u5373\u53EF\uFF0C\u7ED3\u675F\u65E5\u53EF\u4EE5\u540E\u8865\u3002</p>'
+      + '<div style="text-align:right;margin-top:10px;"><button class="btn-primary" id="qp-save">\u8BB0\u5F55</button><button class="mini-btn" id="qp-cancel">\u53D6\u6D88</button></div>';
+    openModal(html);
+    var startDate = todayStr();
+    $("qp-cancel").onclick = closeModal;
+    $("qp-start-pick").onclick = function () { openDatePicker({ mode: "single", value: startDate, onConfirm: function(d) { startDate = d; $("qp-start-disp").textContent = d; } }); };
+    $("qp-save").onclick = function () {
+      Store.data.life.period.records.push({ id: uid(), start: startDate, end: "" });
+      Store.save(); closeModal(); renderHome(); renderHomeThumbs(); toast("\u7ECF\u671F\u5DF2\u8BB0\uFF1A" + startDate);
+    };
+  }
+  function openQuickAccount() {
+    var tags = Store.data.life.accounts.tags;
+    var html = ''
+      + '<h3 style="margin:0 0 10px;">\u5FEB\u901F\u8BB0\u8D26</h3>'
+      + '<div class="row"><label>\u7C7B\u578B</label><select id="qa-atype"><option value="expense">\u652F\u51FA</option><option value="income">\u6536\u5165</option></select></div>'
+      + '<div class="row"><label>\u6E20\u9053</label><select id="qa-achan"><option value="online">\u7EBF\u4E0A</option><option value="offline">\u7EBF\u4E0B</option></select></div>'
+      + '<div class="row"><label>\u6807\u7B7E</label><select id="qa-atag"></select><input id="qa-newtag" placeholder="\u6CA1\u6709\uFF1F\u8F93\u5165\u65B0\u6807\u7B7E" style="margin-top:6px;"></div>'
+      + '<div class="row"><label>\u91D1\u989D</label><input type="number" id="qa-aamt" placeholder="0.00"></div>'
+      + '<textarea id="qa-anote" placeholder="\u5907\u6CE8" style="width:100%;height:50px;border-radius:8px;border:1px solid #ccc;padding:6px;font-size:14px;font-family:var(--font-song);resize:none;box-sizing:border-box;"></textarea>'
+      + '<div style="text-align:right;margin-top:10px;"><button class="btn-primary" id="qa-asave">\u4FDD\u5B58</button><button class="mini-btn" id="qa-acancel">\u53D6\u6D88</button></div>';
+    openModal(html);
+    function updateQATags() {
+      var t = $("qa-atype").value, c = $("qa-achan").value;
+      var opts = (tags[t] && tags[t][c]) || [];
+      var sel = $("qa-atag"); sel.innerHTML = "";
+      opts.forEach(function(tag) { var o = document.createElement("option"); o.value = tag; o.textContent = tag; sel.appendChild(o); });
+    }
+    $("qa-atype").onchange = updateQATags; $("qa-achan").onchange = updateQATags;
+    updateQATags();
+    $("qa-acancel").onclick = closeModal;
+    $("qa-asave").onclick = function () {
+      var amt = parseFloat($("qa-aamt").value);
+      if (isNaN(amt) || amt <= 0) { toast("\u8BF7\u8F93\u5165\u91D1\u989D"); return; }
+      var type = $("qa-atype").value, channel = $("qa-achan").value;
+      var tag = $("qa-newtag").value.trim() || $("qa-atag").value;
+      if (!tag) { toast("\u8BF7\u9009\u62E9\u6216\u8F93\u5165\u6807\u7B7E"); return; }
+      if (!tags[type]) tags[type] = {};
+      if (!tags[type][channel]) tags[type][channel] = [];
+      if (tags[type][channel].indexOf(tag) < 0) tags[type][channel].push(tag);
+      Store.data.life.accounts.entries.unshift({ id: uid(), date: todayStr(), type: type, channel: channel, tag: tag, amount: amt, note: $("qa-anote").value.trim() });
+      Store.save(); closeModal(); renderHome(); renderHomeThumbs(); toast("\u8D26\u5355\u5DF2\u8BB0\uFF1A" + (type === "expense" ? "-" : "+") + amt);
+    };
   }
   function renderThumb(key) {
     var L = Store.data.life;
@@ -1906,24 +2151,283 @@
 
   /* ============ 学习 ============ */
   function curModule() { var c = Store.data.study.categories[state.cat]; return c ? c.modules[state.mod] : null; }
+  /* 返回当前阶段对象 {key, name, color} */
+  function curPhase() {
+    var m = curModule();
+    if (!m || !m.phases || m.phases.length === 0) return null;
+    /* state.phase 存的是阶段 key，如 "p1" "p2" */
+    var found = m.phases.filter(function (p) { return p.key === state.phase; })[0];
+    if (!found) { state.phase = m.phases[0].key; found = m.phases[0]; }
+    return found;
+  }
+  /* 返回当前阶段的记录数组 */
+  function curPhaseRecords() {
+    var m = curModule();
+    if (!m || !m.records) return [];
+    ensurePhases(m);
+    return m.records[state.phase] || [];
+  }
+  /* 迁移旧数据格式（basic/improve → phases/records），并确保每阶段有字段定义 */
+  function ensurePhases(m) {
+    if (m.phases && m.records) {
+      /* 确保每个阶段都有 fields 定义（新版） */
+      m.phases.forEach(function (p) {
+        if (!p.fields || !p.fields.length) {
+          p.fields = getDefaultPhaseFields(m, p);
+        }
+      });
+      return;
+    }
+    var hasImprove = Array.isArray(m.improve);
+    var pn1 = (m.phaseNames && m.phaseNames.basic) || "\u57FA\u7840\u5B66\u4E60";
+    var pn2 = (m.phaseNames && m.phaseNames.improve) || "\u63D0\u5347\u9636\u6BB5";
+    var phase1 = { key: "p1", name: pn1, color: m.basicColor || m.barColor || "#a9c4b5", fields: [
+      { key: "date", type: "date", label: "\u65E5\u671F" },
+      { key: "subject", type: "text", label: "\u8BFE\u7A0B\u79D1\u76EE" },
+      { key: "no", type: "number", label: "\u8BFE\u7A0B\u5E8F\u53F7" },
+      { key: "progress", type: "status", label: "\u8FDB\u5EA6", options: ["\u672A\u5B8C\u6210", "\u5DF2\u5B8C\u6210"] },
+      { key: "note", type: "note", label: "\u7B14\u8BB0" }
+    ] };
+    var phases = [phase1];
+    var records = { p1: Array.isArray(m.basic) ? migrateOldBasicRecords(m.basic, m) : [] };
+    if (hasImprove) {
+      var phase2 = { key: "p2", name: pn2, color: m.improveColor || m.barColor || "#bcd3cb", fields: [
+        { key: "date", type: "date", label: "\u65E5\u671F" },
+        { key: "bookName", type: "text", label: "\u9898\u518C\u540D\u79F0" },
+        { key: "chapterNo", type: "number", label: "\u8BD5\u5377\u7AE0\u8282\u5E8F\u53F7" },
+        { key: "pageNo", type: "text", label: "\u9875\u7801", memo: false },
+        { key: "status", type: "status", label: "\u72B6\u6001", options: ["\u672A\u5B8C\u6210", "\u5DF2\u5B8C\u6210"] },
+        { key: "note", type: "note", label: "\u7B14\u8BB0" }
+      ] };
+      phases.push(phase2);
+      records.p2 = migrateOldImproveRecords(m.improve, m);
+    }
+    m.phases = phases;
+    m.records = records;
+    /* 默认选中第一个阶段 */
+    if (!state.phase || !records.hasOwnProperty(state.phase)) state.phase = phases[0].key;
+  }
+  /* 旧版基础阶段记录迁移：subject/no/progress/note → 新字段 */
+  function migrateOldBasicRecords(arr, m) {
+    if (!arr) return [];
+    return arr.map(function (it) {
+      return { id: it.id || uid(), date: it.date || todayStr(), subject: it.subject || "", no: it.no || "", progress: it.progress || "todo", note: it.note || "" };
+    });
+  }
+  /* 旧版提升阶段记录迁移：bookName/chapterNo/pageNo/photos/note → 新字段 */
+  function migrateOldImproveRecords(arr, m) {
+    if (!arr) return [];
+    return arr.map(function (it) {
+      return { id: it.id || uid(), date: it.date || todayStr(), bookName: it.bookName || "", chapterNo: it.chapterNo || "", pageNo: it.pageNo || "", status: "todo", note: it.note || "", photos: it.photos || [] };
+    });
+  }
+  /* 获取阶段的默认字段（用于还没有fields的旧阶段） */
+  function getDefaultPhaseFields(m, p) {
+    var idx = m.phases.indexOf(p);
+    var fl = m.fieldLabels || {};
+    if (idx === 0) {
+      return [
+        { key: "date", type: "date", label: fl.date || "\u65E5\u671F" },
+        { key: "subject", type: "text", label: fl.basicSubject || "\u8BFE\u7A0B\u79D1\u76EE" },
+        { key: "no", type: "number", label: fl.basicNo || "\u8BFE\u7A0B\u5E8F\u53F7" },
+        { key: "progress", type: "status", label: "\u8FDB\u5EA6", options: [fl.basicProgressTodo || "\u672A\u5B8C\u6210", fl.basicProgressDone || "\u5DF2\u5B8C\u6210"] },
+        { key: "note", type: "note", label: fl.note || "\u7B14\u8BB0" }
+      ];
+    }
+    return [
+      { key: "date", type: "date", label: fl.date || "\u65E5\u671F" },
+      { key: "bookName", type: "text", label: fl.improveSubject || "\u9898\u518C\u540D\u79F0" },
+      { key: "chapterNo", type: "number", label: fl.improveChapter || "\u8BD5\u5377\u7AE0\u8282\u5E8F\u53F7" },
+      { key: "pageNo", type: "text", label: fl.improvePage || "\u9875\u7801", memo: false },
+      { key: "status", type: "status", label: "\u72B6\u6001", options: ["\u672A\u5B8C\u6210", "\u5DF2\u5B8C\u6210"] },
+      { key: "note", type: "note", label: fl.note || "\u7B14\u8BB0" }
+    ];
+  }
   function renderStudyNav() {
     var box = $("study-cats"); box.innerHTML = "";
     Store.data.study.categories.forEach(function (cat, ci) {
-      var h = document.createElement("div"); h.className = "nav-cat"; h.textContent = cat.name; box.appendChild(h);
+      /* 项目标题行：名称 + 编辑/删除 */
+      var h = document.createElement("div"); h.className = "nav-cat";
+      h.innerHTML = '<span class="nav-cat-name">' + esc(cat.name) + '</span>'
+        + '<span class="nav-cat-actions"><button class="mini-btn nav-act" data-editcat="' + ci + '" title="\u7F16\u8F91\u540D\u79F0">✎</button><button class="mini-btn nav-act danger" data-delcat="' + ci + '" title="\u5220\u9664\u9879\u76EE">×</button></span>';
+      box.appendChild(h);
+      /* 项目编辑/删除绑定 */
+      h.querySelector("[data-editcat]").onclick = function (e) { e.stopPropagation(); editCategory(ci); };
+      h.querySelector("[data-delcat]").onclick = function (e) { e.stopPropagation(); deleteCategory(ci); };
       cat.modules.forEach(function (m, mi) {
         var b = document.createElement("button");
         b.className = "nav-mod" + (ci === state.cat && mi === state.mod ? " active" : "");
         b.setAttribute("draggable", "true");
-        b.innerHTML = '<span class="dot" style="background:' + esc(m.barColor) + '"></span>' + esc(m.name) +
-          '<span class="updown"><a data-move="up" data-mi="' + mi + '">▲</a> <a data-move="down" data-mi="' + mi + '">▼</a></span>';
-        b.onclick = function (e) { if (e.target.getAttribute("data-move")) return; state.cat = ci; state.mod = mi; renderStudyNav(); renderStudyMain(); };
+        b.innerHTML = '<span class="dot" style="background:' + esc(m.barColor) + '"></span>' + esc(m.name)
+          + '<span class="updown"><a data-move="up" data-mi="' + mi + '">▲</a> <a data-move="down" data-mi="' + mi + '">▼</a></span>'
+          + '<button class="mini-btn nav-mod-del" data-delmod="' + ci + '-' + mi + '" title="\u5220\u9664\u6A21\u5757">×</button>';
+        b.onclick = function (e) {
+          if (e.target.getAttribute("data-move") || e.target.classList.contains("nav-mod-del")) return;
+          state.cat = ci; state.mod = mi; renderStudyNav(); renderStudyMain();
+        };
         b.querySelector('[data-move="up"]').onclick = function (e) { e.stopPropagation(); moveModule(ci, mi, -1); };
         b.querySelector('[data-move="down"]').onclick = function (e) { e.stopPropagation(); moveModule(ci, mi, 1); };
+        /* 模块删除 */
+        var delBtn = b.querySelector("[data-delmod]");
+        if (delBtn) delBtn.onclick = function (e) { e.stopPropagation(); deleteModule(ci, mi); };
+        /* 模块双击编辑名称（保留） */
+        b.ondblclick = function (e) { if (e.target.getAttribute("data-move") || e.target.classList.contains("nav-mod-del")) return; editModuleName(ci, mi); };
         bindDrag(b, cat.modules, mi, function () { state.mod = mi; renderStudyNav(); renderStudyMain(); });
         box.appendChild(b);
       });
+      /* 该项目下添加模块按钮 */
+      var addModBtn = document.createElement("button");
+      addModBtn.className = "mini-btn nav-addmod";
+      addModBtn.textContent = "+ \u6A21\u5757";
+      addModBtn.onclick = function () { addModuleToCategory(ci); };
+      box.appendChild(addModBtn);
     });
     applyStudyColor();
+  }
+  /* ======== 项目CRUD ======== */
+  function editCategory(ci) {
+    var cat = Store.data.study.categories[ci];
+    var name = prompt("\u4FEE\u6539\u9879\u76EE\u540D\u79F0:", cat.name);
+    if (!name || !(name = name.trim())) return;
+    cat.name = name; Store.save(); renderStudyNav(); toast("\u5DF2\u4FEE\u6539");
+  }
+  function deleteCategory(ci) {
+    var cat = Store.data.study.categories[ci];
+    if (!confirm("\u786E\u5B9A\u5220\u9664\u9879\u76EE\u300C" + cat.name + "\u300D\uFF1F\n\u8BE5\u9879\u76EE\u4E0B\u6240\u6709\u6A21\u5757\u548C\u8BB0\u5F55\u90FD\u5C06\u88AB\u5220\u9664\uFF01")) return;
+    Store.data.study.categories.splice(ci, 1);
+    if (state.cat >= Store.data.study.categories.length) state.cat = Math.max(0, Store.data.study.categories.length - 1);
+    state.mod = 0; var _nm = curModule(); state.phase = (_nm && _nm.phases && _nm.phases[0]) ? _nm.phases[0].key : "p1";
+    Store.save(); renderStudyNav(); renderStudyMain(); toast("\u5DF2\u5220\u9664");
+  }
+  /* ======== 模块CRUD ======== */
+  function addModuleToCategory(ci) {
+    var pal = ["#a9c4b5", "#bcd3cb", "#aec9cf", "#bcd0c0", "#b0cdd6", "#c3d7c8", "#c4bda9", "#cfbcd3"];
+    var cat = Store.data.study.categories[ci];
+    var existingCount = cat.modules.length;
+    var n = prompt("\u8F93\u5165\u65B0\u6A21\u5757\u540D\u79F0:");
+    if (!n || !(n = n.trim())) return;
+    /* 继承同项目第一个模块的阶段配置（如果有） */
+    var refPhases = null;
+    if (cat.modules.length > 0 && cat.modules[0].phases) {
+      var refMod = cat.modules[0];
+      ensurePhases(refMod);
+      refPhases = refMod.phases.map(function (p) { return { key: "p" + (existingCount + 1) + "_" + p.key, name: p.name, color: pal[existingCount % pal.length], fields: p.fields ? clone(p.fields) : null }; });
+    }
+    if (!refPhases) refPhases = [{ key: "p1", name: "\u57FA\u7840\u5B66\u4E60", color: pal[existingCount % pal.length], fields: [
+      { key: "date", type: "date", label: "\u65E5\u671F" },
+      { key: "itemName", type: "text", label: "\u540D\u79F0" },
+      { key: "note", type: "note", label: "\u7B14\u8BB0" }
+    ] }];
+    var records = {};
+    refPhases.forEach(function (p) { records[p.key] = []; });
+    var m = {
+      name: n,
+      barColor: refPhases[0].color,
+      phases: refPhases,
+      records: records,
+      fieldLabels: null
+    };
+    cat.modules.push(m);
+    state.cat = ci; state.mod = cat.modules.length - 1; state.phase = refPhases[0].key;
+    Store.save(); renderStudyNav(); renderStudyMain(); toast("\u5DF2\u6DFB\u52A0\u6A21\u5757\u300C" + n + "\u300D");
+  }
+  function editModuleName(ci, mi) {
+    var m = Store.data.study.categories[ci].modules[mi];
+    var n = prompt("\u4FEE\u6539\u6A21\u5757\u540D\u79F0:", m.name);
+    if (!n || !(n = n.trim())) return;
+    m.name = n; Store.save(); renderStudyNav();
+    $("module-name").textContent = n; toast("\u5DF2\u4FEE\u6539");
+  }
+  function deleteModule(ci, mi) {
+    var m = Store.data.study.categories[ci].modules[mi];
+    if (!confirm("\u786E\u5B9A\u5220\u9664\u6A21\u5757\u300C" + m.name + "\u300D\uFF1F\n\u8BE5\u6A21\u5757\u4E0B\u6240\u6709\u8BB0\u5F55\u90FD\u5C06\u88AB\u5220\u9664\uFF01")) return;
+    Store.data.study.categories[ci].modules.splice(mi, 1);
+    if (Store.data.study.categories[ci].modules.length === 0) {
+      /* 如果项目下没有模块了，删掉整个项目 */
+      Store.data.study.categories.splice(ci, 1);
+      if (state.cat >= Store.data.study.categories.length) state.cat = Math.max(0, Store.data.study.categories.length - 1);
+    } else {
+      if (state.mod >= Store.data.study.categories[ci].modules.length) state.mod = Store.data.study.categories[ci].modules.length - 1;
+    }
+    state.mod = 0; var _nm = curModule(); state.phase = (_nm && _nm.phases && _nm.phases[0]) ? _nm.phases[0].key : "p1";
+    Store.save(); renderStudyNav(); renderStudyMain(); toast("\u5DF2\u5220\u9664");
+  }
+  /* ======== 阶段编辑 ======== */
+  function renderPhaseTabs() {
+    var box = $("study-phase-tabs"); if (!box) return;
+    var m = curModule();
+    if (!m) { box.innerHTML = ""; return; }
+    ensurePhases(m);
+    var html = '';
+    m.phases.forEach(function (p, idx) {
+      var active = state.phase === p.key ? ' active' : '';
+      html += '<button class="phase' + active + '" data-pkey="' + esc(p.key) + '">' + esc(p.name)
+        + ' <span class="phase-edit" data-rename="' + esc(p.key) + '" title="\u4FEE\u6539\u540D\u79F0">✎</span>'
+        + ' <span class="phase-fields" data-fields="' + esc(p.key) + '" title="\u8BBE\u7F6E\u5B57\u6BB5">\u2699</span>'
+        + (m.phases.length > 1 ? ' <span class="phase-del" data-delp="' + esc(p.key) + '" title="\u5220\u9664\u6B64\u9636\u6BB5">×</span>' : '')
+        + '</button>';
+    });
+    html += '<button class="phase phase-add" id="phase-add-btn" title="\u65B0\u589E\u9636\u6BB5">+</button>';
+    box.innerHTML = html;
+    /* 阶段切换 */
+    box.querySelectorAll(".phase[data-pkey]").forEach(function(btn) {
+      btn.addEventListener("click", function (e) {
+        if (e.target.classList.contains("phase-edit") || e.target.classList.contains("phase-del") || e.target.classList.contains("phase-fields")) return;
+        state.phase = this.getAttribute("data-pkey"); renderStudyMain();
+      });
+    });
+    /* 改名 */
+    box.querySelectorAll(".phase-edit").forEach(function(sp) {
+      sp.onclick = function (e) { e.stopPropagation(); renamePhase(this.getAttribute("data-rename")); };
+    });
+    /* 设置字段 */
+    box.querySelectorAll(".phase-fields").forEach(function(sp) {
+      sp.onclick = function (e) { e.stopPropagation(); editPhaseFields(this.getAttribute("data-fields")); };
+    });
+    /* 删除 */
+    box.querySelectorAll(".phase-del").forEach(function(sp) {
+      sp.onclick = function (e) { e.stopPropagation(); deletePhase(this.getAttribute("data-delp")); };
+    });
+    /* 新增 */
+    var addBtn = $("phase-add-btn");
+    if (addBtn) addBtn.onclick = addPhase;
+  }
+  function renamePhase(pkey) {
+    var m = curModule(); if (!m) return;
+    var p = m.phases.filter(function (x) { return x.key === pkey; })[0];
+    if (!p) return;
+    var n = prompt("\u4FEE\u6539\u9636\u6BB5\u540D\u79F0:", p.name);
+    if (!n || !(n = n.trim())) return;
+    p.name = n; Store.save(); renderPhaseTabs(); toast("\u5DF2\u4FEE\u6539");
+  }
+  function addPhase() {
+    var m = curModule(); if (!m) return;
+    ensurePhases(m);
+    var n = prompt("\u65B0\u9636\u6BB5\u540D\u79F0:");
+    if (!n || !(n = n.trim())) return;
+    var pal = ["#a9c4b5", "#bcd3cb", "#aec9cf", "#bcd0c0", "#b0cdd6", "#c3d7c8", "#c4bda9", "#cfbcd3"];
+    var key = "p" + (m.phases.length + 1);
+    var newPhase = { key: key, name: n, color: pal[m.phases.length % pal.length], fields: [
+      { key: "date", type: "date", label: "\u65E5\u671F" },
+      { key: "itemName", type: "text", label: "\u540D\u79F0" },
+      { key: "note", type: "note", label: "\u7B14\u8BB0" }
+    ] };
+    m.phases.push(newPhase);
+    m.records[key] = [];
+    state.phase = key;
+    Store.save(); renderStudyMain(); toast("\u5DF2\u589E\u52A0\u9636\u6BB5\u300C" + n + "\u300D");
+  }
+  function deletePhase(pkey) {
+    var m = curModule(); if (!m || m.phases.length <= 1) return;
+    var p = m.phases.filter(function (x) { return x.key === pkey; })[0];
+    if (!p) return;
+    if (!confirm("\u786E\u5B9A\u5220\u9664\u9636\u6BB5\u300C" + p.name + "\u300D\uFF1F\n\u8BE5\u9636\u6BB5\u4E0B\u7684 " + (m.records[pkey] ? m.records[pkey].length : 0) + " \u6761\u8BB0\u5F55\u4E5F\u5C06\u88AB\u5220\u9664\uFF01")) return;
+    /* 删除阶段和记录 */
+    m.phases = m.phases.filter(function (x) { return x.key !== pkey; });
+    delete m.records[pkey];
+    /* 如果删的是当前阶段，切到第一个 */
+    if (state.phase === pkey && m.phases.length > 0) state.phase = m.phases[0].key;
+    Store.save(); renderStudyMain(); toast("\u5DF2\u5220\u9664\u9636\u6BB5");
   }
   function applyStudyColor() {
     var m = curModule(); if (!m) return;
@@ -1952,93 +2456,500 @@
   function renderStudyMain() {
     var m = curModule(); if (!m) return;
     m.__mod = state.mod;
+    ensurePhases(m);
     $("module-name").textContent = m.name;
     $("module-dot").style.background = m.barColor;
-    var pts = document.querySelectorAll(".phase");
-    for (var i = 0; i < pts.length; i++) pts[i].classList.toggle("active", pts[i].getAttribute("data-phase") === state.phase);
+    /* 模块改名按钮（放在主内容区头部，方便手机操作） */
+    var head = $("module-head");
+    var oldRename = head.querySelector(".mod-head-rename");
+    if (oldRename) oldRename.remove();
+    var renameBtn = document.createElement("button");
+    renameBtn.className = "mini-btn mod-head-rename";
+    renameBtn.title = "修改模块名称";
+    renameBtn.textContent = "\u270E";
+    renameBtn.onclick = function () { editModuleName(state.cat, state.mod); };
+    head.appendChild(renameBtn);
+    /* 动态渲染阶段标签 */
+    renderPhaseTabs();
+    var cp = curPhase();
+    var cpKey = cp ? cp.key : (m.phases[0] ? m.phases[0].key : "p1");
+    state.phase = cpKey;
+    /* 颜色选择器：显示当前模块所有阶段的颜色 */
     $("study-swatches").innerHTML = "";
-    [m.basicColor, m.improveColor, m.barColor].forEach(function (c) {
-      var sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = c;
-      sw.onclick = function () { setModuleColor(c); }; $("study-swatches").appendChild(sw);
+    m.phases.forEach(function (p) {
+      var sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = p.color;
+      sw.onclick = function () { setPhaseColor(p.key, p.color); }; $("study-swatches").appendChild(sw);
     });
+        /* 动态字段列表渲染 */
     var ul = $("study-list"); ul.innerHTML = "";
-    var list = state.phase === "basic" ? m.basic : m.improve;
+    var list = curPhaseRecords();
+    var phaseFields = cp.fields || getDefaultPhaseFields(m, cp);
     list.forEach(function (it) {
       var li = document.createElement("li");
-      if (state.phase === "basic") {
-        li.innerHTML = '<div class="it-title">' + esc(it.subject || "课程") + '</div>' +
-          '<div class="it-meta">' + esc(it.date || "") + "　序号 " + esc(it.no || "") + "　" + (it.progress === "done" ? "已完成" : "未完成") + '</div>' +
-          (it.note ? '<div class="it-body">' + esc(it.note) + "</div>" : "") +
-          '<div class="it-actions"><button data-act="edit">编辑</button><button data-act="del" class="del">删除</button></div>';
-      } else {
-        li.innerHTML = '<div class="it-title">' + esc(it.bookName || "题册") + '</div>' +
-          '<div class="it-meta">' + esc(it.date || "") + "　章节 " + esc(it.chapterNo || "") + "　页码 " + esc(it.pageNo || "") + '</div>' +
-          (it.note ? '<div class="it-body">' + esc(it.note) + "</div>" : "") +
-          (it.photos && it.photos.length ? '<div class="photos">' + it.photos.map(function (p) { return '<img src="' + esc(p) + '">'; }).join("") + "</div>" : "") +
-          '<div class="it-actions"><button data-act="edit">编辑</button><button data-act="del" class="del">删除</button></div>';
-      }
+      var titleText = "";
+      var metaParts = [];
+      var bodyHtml = "";
+      var photosHtml = "";
+      phaseFields.forEach(function(f) {
+        var val = it[f.key];
+        if (val == null) val = "";
+        var sVal = String(val);
+        if (f.type === "date") {
+          metaParts.push(esc(sVal));
+        } else if (f.type === "text") {
+          if (!titleText) titleText = sVal || f.label;
+        } else if (f.type === "number") {
+          if (sVal) metaParts.push(esc(f.label) + " " + esc(sVal));
+        } else if (f.type === "status") {
+          if (sVal) metaParts.push(esc(sVal));
+        } else if (f.type === "note") {
+          if (sVal) bodyHtml += '<div class="it-body">' + esc(sVal) + "</div>";
+        }
+      });
+      /* 照片（兼容旧数据） */
+      if (it.photos && it.photos.length) photosHtml = '<div class="photos">' + it.photos.map(function(p){return '<img src="'+esc(p)+'">';}).join("")+"</div>";
+      if (!titleText) titleText = "记录";
+      li.innerHTML = '<div class="it-title">' + esc(titleText) + '</div>'
+        + (metaParts.length ? '<div class="it-meta">' + metaParts.join("　") + '</div>' : '')
+        + bodyHtml
+        + photosHtml
+        + '<div class="it-actions"><button data-act="edit">编辑</button><button data-act="del" class="del">删除</button></div>';
       li.setAttribute("data-id", it.id); ul.appendChild(li);
     });
     applyStudyColor();
+    /* 更新建按钮文字 */
+    var addBtn = $("study-add");
+    if (addBtn) addBtn.textContent = "+ \u65B0\u5EFA（" + esc(cp ? cp.name : "\u5B66\u4E60") + "）";
+  }
+  function setPhaseColor(pkey, hex) {
+    var m = curModule(); if (!m) return;
+    ensurePhases(m);
+    var p = m.phases.filter(function (x) { return x.key === pkey; })[0];
+    if (!p) return;
+    openColorPicker(p.color, function (c) {
+      p.color = c;
+      if (pkey === state.phase) m.barColor = c;
+      Store.save(); renderStudyNav(); renderStudyMain();
+    });
   }
   function setModuleColor(hex) {
     var m = curModule(); if (!m) return;
-    if (state.phase === "basic") m.basicColor = hex; else m.improveColor = hex;
-    m.barColor = hex; Store.save(); renderStudyNav(); renderStudyMain();
+    ensurePhases(m);
+    var cp = curPhase();
+    if (cp) { cp.color = hex; m.barColor = hex; }
+    Store.save(); renderStudyNav(); renderStudyMain();
   }
   function showStudyForm(editId) {
     var m = curModule(); if (!m) return;
-    var isBasic = state.phase === "basic";
-    var it = editId ? (isBasic ? m.basic : m.improve).filter(function (x) { return x.id === editId; })[0] : null;
-    var pool = isBasic ? Store.data.study.basicTagPool.subject : Store.data.study.improveTagPool.bookName;
-    var sel = it ? [it.subject || it.bookName || ""].filter(Boolean) : [];
-    openModal('<h3>' + (it ? "编辑" : "新建") + (isBasic ? "（基础学习）" : "（提升阶段）") + '</h3>' +
-      (isBasic
-        ? '<div class="row"><label>日期</label><span id="sf-date-disp" class="date-disp">' + (it && it.date ? esc(it.date) : "未选择（默认今天）") + '</span><button class="mini-btn" id="sf-date-pick">选择日期</button></div>' +
-          '<div style="font-size:13px;color:#5f7a5a;margin:6px 0 2px;">课程科目</div><div id="sf-subj" class="tagctrl"></div>' +
-          '<input id="sf-no" placeholder="课程序号（01, 02…）" value="' + (it ? esc(it.no) : "") + '">' +
-          '<select id="sf-prog"><option value="todo">未完成</option><option value="done">已完成</option></select>' +
-          '<textarea id="sf-note" placeholder="笔记">' + (it ? esc(it.note) : "") + '</textarea>'
-        : '<div class="row"><label>日期</label><span id="sf-date-disp" class="date-disp">' + (it && it.date ? esc(it.date) : "未选择（默认今天）") + '</span><button class="mini-btn" id="sf-date-pick">选择日期</button></div>' +
-          '<div style="font-size:13px;color:#5f7a5a;margin:6px 0 2px;">题册名称</div><div id="sf-subj" class="tagctrl"></div>' +
-          '<input id="sf-ch" placeholder="试卷章节序号（01, 02…）" value="' + (it ? esc(it.chapterNo) : "") + '">' +
-          '<input id="sf-pg" placeholder="题测页码（01, 02…）" value="' + (it ? esc(it.pageNo) : "") + '">' +
-          '<textarea id="sf-note" placeholder="笔记">' + (it ? esc(it.note) : "") + '</textarea>' +
-          '<input id="sf-photo" type="file" accept="image/*" style="margin-bottom:8px;">') +
-      '<div class="form-actions"><button class="btn-secondary" id="sf-cancel">返回</button><button class="btn-primary" id="sf-save">保存</button></div>');
+    ensurePhases(m);
+    var cp = curPhase();
+    if (!cp) return;
+    var phaseLabel = cp.name || "学习";
+    var fields = cp.fields || getDefaultPhaseFields(m, cp);
+    var records = curPhaseRecords();
+    var it = editId ? records.filter(function (x) { return x.id === editId; })[0] : null;
+
+    /* 构建动态表单 */
+    var html = '<h3>' + (it ? "编辑" : "新建") + '（' + esc(phaseLabel) + '）</h3>'
+      + '<div style="text-align:right;margin-bottom:6px;"><button class="mini-btn" id="sf-editfields" title="设置字段">⚙ 设置字段</button></div>'
+      + '<div id="sf-dynamic-fields"></div>'
+      + '<div class="form-actions"><button class="btn-secondary" id="sf-cancel">返回</button><button class="btn-primary" id="sf-save">保存</button></div>';
+    openModal(html);
+
+    /* 渲染动态字段 */
+    var fieldContainer = $("sf-dynamic-fields");
     var sfDate = it && it.date ? it.date : "";
+    var sfPhotos = (it && it.photos) ? it.photos.slice() : [];
+
+    fields.forEach(function(f, fi) {
+      var val = it ? (it[f.key] != null ? it[f.key] : "") : "";
+      var wrapper = document.createElement("div");
+      wrapper.className = "sf-field-group";
+
+      if (f.type === "date") {
+        wrapper.innerHTML = '<div class="row"><label>' + esc(f.label) + '</label><span id="sf-date-disp" class="date-disp">' + (val ? esc(val) : "未选择（默认今天）") + '</span><button class="mini-btn" id="sf-date-pick">选择日期</button></div>';
+        fieldContainer.appendChild(wrapper);
+      } else if (f.type === "text") {
+        if (f.memo === false) {
+          wrapper.innerHTML = '<div class="row"><label>' + esc(f.label) + '</label><input id="sf-text-' + fi + '" type="text" value="' + esc(val) + '" placeholder="输入' + esc(f.label) + '（不记忆）" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;"></div>';
+          fieldContainer.appendChild(wrapper);
+        } else {
+          wrapper.innerHTML = '<div style="font-size:13px;color:#5f7a5a;margin:6px 0 2px;">' + esc(f.label) + '</div><div id="sf-text-' + fi + '" class="tagctrl"></div>';
+          fieldContainer.appendChild(wrapper);
+          var pool = getTagPool(f.key);
+          var selArr = val ? [String(val)] : [];
+          /* 延迟渲染标签控件，等 DOM 插入后 */
+          setTimeout(function() {
+            var el = document.getElementById("sf-text-" + fi);
+            if (el) createTagControl(el, pool, selArr, { placeholder: "输入" + f.label });
+          }, 0);
+        }
+      } else if (f.type === "number") {
+        var gridOn = f.grid !== false;
+        wrapper.innerHTML = '<div class="row"><label>' + esc(f.label) + '</label><input id="sf-num-' + fi + '" type="number" value="' + esc(val) + '" placeholder="序号" style="width:90px;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;"></div>'
+          + (gridOn ? '<div style="font-size:11px;color:#999;margin:2px 0 0;">上面也可手动输入任意数字（如 85）</div>' : '')
+          + '<div id="sf-numgrid-' + fi + '" style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;"></div>';
+        fieldContainer.appendChild(wrapper);
+        /* 数字点选网格 */
+        var grid = wrapper.querySelector("#sf-numgrid-" + fi);
+        if (grid && gridOn) {
+          for (var ni = 1; ni <= 30; ni++) {
+            var nb = document.createElement("button");
+            nb.className = "mini-btn"; nb.textContent = ni; nb.style.cssText = "padding:2px 8px;font-size:12px;";
+            nb.onclick = (function(n, inputEl) { return function() { inputEl.value = n; }; })(ni, wrapper.querySelector("#sf-num-" + fi));
+            grid.appendChild(nb);
+          }
+        } else if (grid) {
+          grid.style.display = "none";
+        }
+      } else if (f.type === "status") {
+        var opts = f.options || ["选项1", "选项2"];
+        var optsHtml = opts.map(function(oi) { return '<option value="' + esc(oi) + '">' + esc(oi) + '</option>'; }).join("");
+        optsHtml += '<option value="__custom__">-- 新增选项 --</option>';
+        wrapper.innerHTML = '<div class="row"><label>' + esc(f.label) + '</label><select id="sf-status-' + fi + '">' + optsHtml + '</select>'
+          + '<input id="sf-newstatus-' + fi + '" placeholder="输入新选项" style="display:none;width:100%;margin-top:4px;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;"></div>';
+        fieldContainer.appendChild(wrapper);
+        if (val && opts.indexOf(val) >= 0) wrapper.querySelector("#sf-status-" + fi).value = val;
+        else if (val) wrapper.querySelector("#sf-status-" + fi).value = "__custom__";
+        /* 新增选项逻辑 */
+        var statusSel = wrapper.querySelector("#sf-status-" + fi);
+        var newStInput = wrapper.querySelector("#sf-newstatus-" + fi);
+        if (statusSel && newStInput) {
+          statusSel.onchange = function() {
+            if (this.value === "__custom__") { newStInput.style.display = ""; newStInput.focus(); }
+            else { newStInput.style.display = "none"; }
+          };
+        }
+      } else if (f.type === "note") {
+        wrapper.innerHTML = '<textarea id="sf-note-' + fi + '" placeholder="' + esc(f.label) + '">' + esc(String(val)) + '</textarea>'
+          + (fi === fields.length - 1 || true ? '<input id="sf-photo" type="file" accept="image/*" style="margin-top:4px;">' : '');
+        fieldContainer.appendChild(wrapper);
+      }
+    });
+
+    /* 设置字段按钮 */
+    $("sf-editfields").onclick = function () { closeModal(); editPhaseFields(cp.key); };
+
     $("sf-cancel").onclick = closeModal;
-    $("sf-date-pick").onclick = function () {
-      openDatePicker({ mode: "single", value: sfDate || undefined, onConfirm: function (d) { sfDate = d; $("sf-date-disp").textContent = d; } });
+
+    /* 日期选择器 */
+    var datePickBtn = $("sf-date-pick");
+    if (datePickBtn) datePickBtn.onclick = function () {
+      openDatePicker({ mode: "single", value: sfDate || undefined, onConfirm: function (d) { sfDate = d; var disp = $("sf-date-disp"); if (disp) disp.textContent = d; } });
     };
-    createTagControl($("sf-subj"), pool, sel, { placeholder: "输入科目/题册名" });
+
+    /* 保存：收集所有字段值 */
     $("sf-save").onclick = function () {
-      var photos = (it && it.photos) ? it.photos.slice() : [];
       var file = $("sf-photo") && $("sf-photo").files && $("sf-photo").files[0];
       function commit() {
-        var obj = isBasic
-          ? { id: it ? it.id : uid(), date: sfDate || todayStr(), subject: sel.join("") || "课程", no: $("sf-no").value.trim(), progress: $("sf-prog").value, note: $("sf-note").value.trim() }
-          : { id: it ? it.id : uid(), date: sfDate || todayStr(), bookName: sel.join("") || "题册", chapterNo: $("sf-ch").value.trim(), pageNo: $("sf-pg").value.trim(), note: $("sf-note").value.trim(), photos: photos };
-        var arr = isBasic ? m.basic : m.improve;
-        if (it) { var i = arr.indexOf(it); arr[i] = obj; } else arr.unshift(obj);
+        var obj = { id: it ? it.id : uid() };
+        obj.date = sfDate || todayStr();
+        /* 收集各字段值 */
+        fields.forEach(function(f, fi) {
+          if (f.type === "date") {
+            obj[f.key] = sfDate || todayStr();
+          } else if (f.type === "text") {
+            var tcEl = document.getElementById("sf-text-" + fi);
+            if (f.memo === false) {
+              obj[f.key] = tcEl ? (tcEl.value || "").trim() : "";
+            } else {
+              var tags = tcEl ? tcEl.querySelectorAll(".tagchip") : [];
+              var textVal = [];
+              tags.forEach(function(t) { textVal.push(t.getAttribute("data-val") || t.textContent); });
+              obj[f.key] = textVal.join("") || "";
+              saveToTagPool(f.key, obj[f.key]);
+            }
+          } else if (f.type === "number") {
+            var numInput = document.getElementById("sf-num-" + fi);
+            obj[f.key] = numInput ? numInput.value.trim() : "";
+          } else if (f.type === "status") {
+            var stSel = document.getElementById("sf-status-" + fi);
+            var newStInput = document.getElementById("sf-newstatus-" + fi);
+            var stVal = stSel ? stSel.value : "";
+            if (stVal === "__custom__" && newStInput) {
+              stVal = newStInput.value.trim();
+              if (stVal) {
+                /* 将新选项加入字段定义 */
+                if (!f.options) f.options = [];
+                if (f.options.indexOf(stVal) < 0) f.options.push(stVal);
+                Store.save();
+              }
+            }
+            obj[f.key] = stVal || (f.options && f.options[0]) || "";
+          } else if (f.type === "note") {
+            var noteEl = document.getElementById("sf-note-" + fi);
+            obj[f.key] = noteEl ? noteEl.value.trim() : "";
+          }
+        });
+        /* 照片 */
+        if (sfPhotos && sfPhotos.length > 0) obj.photos = sfPhotos;
+        var arr = curPhaseRecords();
+        if (it) { var i = arr.indexOf(it); if (i >= 0) arr[i] = obj; } else arr.unshift(obj);
         Store.save(); closeModal(); renderStudyMain(); toast("已保存");
       }
-      if (file) { var rd = new FileReader(); rd.onload = function () { photos.push(rd.result); commit(); }; rd.onerror = function () { commit(); }; rd.readAsDataURL(file); }
+      if (file) { var rd = new FileReader(); rd.onload = function () { if (!sfPhotos) sfPhotos = []; sfPhotos.push(rd.result); commit(); }; rd.onerror = function () { commit(); }; rd.readAsDataURL(file); }
       else commit();
     };
   }
 
+
+    /* ======== 阶段字段编辑器（含模板库） ======== */
+  function editPhaseFields(phaseKey) {
+    var m = curModule(); if (!m) return;
+    ensurePhases(m);
+    var p = m.phases.filter(function (x) { return x.key === phaseKey; })[0];
+    if (!p) return;
+    if (!p.fields) p.fields = getDefaultPhaseFields(m, p);
+    var fields = clone(p.fields);
+    var typeOptions = [
+      { type: "date",   label: "日期", desc: "日期选择器" },
+      { type: "text",   label: "文本", desc: "文本输入，自动记忆标签" },
+      { type: "number", label: "数字", desc: "数字，提供点选网格" },
+      { type: "status", label: "状态", desc: "下拉选项，可新增" },
+      { type: "note",   label: "笔记", desc: "多行文本+图片上传" }
+    ];
+    function renderEditor() {
+      var html = '<h3 style="margin:0 0 8px;">⚙ 设置「' + esc(p.name) + '」的字段</h3>'
+        + '<div style="margin-bottom:8px;"><button class="mini-btn" id="fe-help">? 字段类型说明（看不懂点这里）</button></div>';
+      var templates = Store.data.study.fieldTemplates || [];
+      if (templates.length > 0) {
+        html += '<div style="margin-bottom:12px;"><label style="font-size:13px;color:#5f7a5a;font-weight:600;display:block;margin-bottom:4px;">模板库（点击应用）:</label><div style="display:flex;flex-direction:column;gap:4px;">';
+        templates.forEach(function(t, ti) {
+          html += '<button class="mini-btn tpl-btn" data-tpl="' + ti + '" style="text-align:left;padding:6px 10px;font-size:13px;"><b>' + esc(t.name) + '</b> <span style="color:#888;font-size:11px;">' + esc(t.desc || "") + '</span></button>';
+        });
+        html += '</div></div>';
+      }
+      html += '<label style="font-size:13px;color:#5f7a5a;font-weight:600;display:block;margin:6px 0 4px;">当前字段:</label><div id="fe-field-list"></div>';
+      html += '<div style="margin-top:8px;"><label style="font-size:13px;color:#5f7a5a;font-weight:600;">+ 添加字段:</label><div id="fe-add-area" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;"></div></div>';
+      html += '<div class="form-actions" style="margin-top:12px;"><button class="btn-secondary" id="fe-cancel">返回</button><button class="btn-primary" id="fe-save">保存</button></div>';
+      openModal(html);
+      templates.forEach(function(t, ti) {
+        var btn = document.querySelector('[data-tpl="' + ti + '"]');
+        if (btn) btn.onclick = function () {
+          if (!confirm("应用模板「" + t.name + "」？当前字段将被替换。")) return;
+          fields = clone(t.fields); renderEditor();
+        };
+      });
+      renderFieldList();
+      var helpBtn = $("fe-help");
+      if (helpBtn) helpBtn.onclick = showFieldTypeGuide;
+      var addArea = $("fe-add-area");
+      if (addArea) {
+        typeOptions.forEach(function(topt) {
+          var b = document.createElement("button");
+          b.className = "mini-btn"; b.textContent = topt.label; b.title = topt.desc;
+          b.onclick = function () {
+            var newKey = "cf_" + Date.now().toString(36) + "_" + topt.type;
+            var newField = { key: newKey, type: topt.type, label: topt.label };
+            if (topt.type === "status") newField.options = ["选项1", "选项2"];
+            fields.push(newField); renderFieldList();
+          };
+          addArea.appendChild(b);
+        });
+      }
+      $("fe-cancel").onclick = closeModal;
+      $("fe-save").onclick = function () {
+        if (fields.length === 0) { toast("至少需要一个字段"); return; }
+        p.fields = fields; Store.save(); closeModal();
+        toast("「" + p.name + "」字段已更新"); renderStudyMain();
+      };
+    }
+    function renderFieldList() {
+      var box = $("fe-field-list"); if (!box) return;
+      if (fields.length === 0) { box.innerHTML = '<p class="hint" style="font-size:12px;">还没有字段，下方选择类型添加</p>'; return; }
+      box.innerHTML = "";
+      fields.forEach(function(f, fi) {
+        var row = document.createElement("div");
+        row.className = "fe-field-row";
+        row.style.cssText = "display:flex;align-items:center;gap:6px;padding:6px 8px;background:#f8f6f1;border-radius:6px;margin-bottom:4px;";
+        var tc = f.type==="date"?"#d4edda":f.type==="text"?"#cce5ff":f.type==="number"?"#fff3cd":f.type==="status"?"#f8d7da":"#e2e3e5";
+        var typeBadge = '<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:'+tc+';color:#333;">' + f.type + '</span>';
+        var labelHtml = '<input id="felabel-' + fi + '" value="' + esc(f.label) + '" placeholder="字段名称" style="flex:1;min-width:0;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;">';
+        var optsHtml = '';
+        if (f.type === "text") {
+          var memoOn = f.memo !== false;
+          optsHtml += '<label style="font-size:11px;color:#666;display:flex;align-items:center;gap:2px;white-space:nowrap;"><input type="checkbox" id="fememo-' + fi + '"' + (memoOn ? ' checked' : '') + '> 记忆标签</label>';
+        }
+        if (f.type === "number") {
+          var gridOn = f.grid !== false;
+          optsHtml += '<label style="font-size:11px;color:#666;display:flex;align-items:center;gap:2px;white-space:nowrap;"><input type="checkbox" id="fegrid-' + fi + '"' + (gridOn ? ' checked' : '') + '> 点选网格</label>';
+        }
+        if (f.type === "status" && f.options) {
+          optsHtml += '<span style="font-size:11px;color:#888;">(' + f.options.join("/") + ')</span><button class="mini-btn" id="feopts-' + fi + '" style="padding:1px 6px;font-size:11px;">编辑</button>';
+        }
+        row.innerHTML = '<span style="cursor:move;color:#aaa;" title="拖动">:::</span> ' + typeBadge + ' ' + labelHtml + ' ' + optsHtml + ' <button class="mini-btn danger" data-fdel="' + fi + '" style="padding:1px 6px;font-size:11px;">删</button>';
+        box.appendChild(row);
+        row.querySelector("[data-fdel]").onclick = function () { fields.splice(parseInt(this.getAttribute("data-fdel")), 1); renderFieldList(); };
+        row.querySelector("#felabel-" + fi).onchange = function () { fields[fi].label = this.value.trim() || fields[fi].label; };
+        var memoChk = document.getElementById("fememo-" + fi);
+        if (memoChk) memoChk.onchange = function () { if (this.checked) delete fields[fi].memo; else fields[fi].memo = false; };
+        var gridChk = document.getElementById("fegrid-" + fi);
+        if (gridChk) gridChk.onchange = function () { if (this.checked) delete fields[fi].grid; else fields[fi].grid = false; };
+        var optBtn = document.getElementById("feopts-" + fi);
+        if (optBtn) optBtn.onclick = function () { editStatusOptions(fi); };
+      });
+    }
+    function editStatusOptions(fi) {
+      var f = fields[fi];
+      if (!f.options) f.options = [];
+      var currOpts = f.options.slice();
+      var html = '<h3 style="margin:0 0 8px;">编辑「' + esc(f.label) + '」的选项</h3><p class="hint" style="font-size:12px;">每行一个选项，留空删除。</p><div id="fe-opts-list">';
+      currOpts.forEach(function(oi, oiIdx) {
+        html += '<div style="display:flex;gap:4px;margin:3px 0;"><input id="feoi-' + oiIdx + '" value="' + esc(oi) + '" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:13px;"><button class="mini-btn danger" data-odel="' + oiIdx + '" style="padding:2px 6px;font-size:11px">删</button></div>';
+      });
+      html += '</div><button class="mini-btn" id="fe-opt-add" style="margin-top:4px;">+ 新增</button><div class="form-actions" style="margin-top:10px;"><button class="btn-primary" id="fe-opt-save">确定</button></div>';
+      openModal(html);
+      document.querySelectorAll("[data-odel]").forEach(function(b) {
+        b.onclick = function () { currOpts.splice(parseInt(this.getAttribute("data-odel")), 1); editStatusOptions(fi); };
+      });
+      $("fe-opt-add").onclick = function () { currOpts.push("新选项" + (currOpts.length + 1)); editStatusOptions(fi); };
+      $("fe-opt-save").onclick = function () {
+        var newOpts = [];
+        currOpts.forEach(function(oi, oiIdx) { var inp = document.getElementById("feoi-" + oiIdx); if (inp && inp.value.trim()) newOpts.push(inp.value.trim()); });
+        f.options = newOpts.length > 0 ? newOpts : ["选项1"];
+        closeModal(); renderFieldList();
+      };
+    }
+    renderEditor();
+  }
+  /* 字段类型说明（小贴士） */
+  function showFieldTypeGuide() {
+    var html = '<h3 style="margin:0 0 10px;">字段类型说明</h3>'
+      + '<div style="font-size:13px;line-height:1.8;">'
+      + '<p><b>① 日期</b>：选哪天学的，点「选择日期」弹日历。留空默认今天。</p>'
+      + '<p><b>② 文本</b>：课程名称、试卷名称等文字。默认<b>自动记忆</b>——填过的值下次自动出现在候选里，点一下即可；不想要记忆（如页码区间）可在「设置字段」里取消勾选「记忆标签」。</p>'
+      + '<p><b>③ 数字</b>：第几节课、第几章。提供 1–30 点选网格，也可直接在框里手输任意数字（比如 85 节）。「设置字段」里取消「点选网格」可只留手输框。</p>'
+      + '<p><b>④ 状态</b>：做题进度等。下拉选择，不够用点「-- 新增选项 --」随时加（如「需重做」）。</p>'
+      + '<p><b>⑤ 笔记</b>：多行文字 + 照片上传。照片存在本机浏览器，换设备/清缓存会丢，重要照片请另存。</p>'
+      + '<p style="color:#5f7a5a;">用法：在「⚙ 设置字段」里从模板库一键套用，或自己增删字段、改名、改类型。</p>'
+      + '</div>'
+      + '<div class="form-actions" style="margin-top:10px;"><button class="btn-primary" id="ftg-close">知道了</button></div>';
+    openModal(html);
+    var c = $("ftg-close"); if (c) c.onclick = closeModal;
+  }
+  /* 标签池：文本字段自动记忆 */
+  function getTagPool(fieldKey) {
+    if (!Store.data.study.studyTagPools) Store.data.study.studyTagPools = {};
+    if (!Store.data.study.studyTagPools[fieldKey]) Store.data.study.studyTagPools[fieldKey] = [];
+    return Store.data.study.studyTagPools[fieldKey];
+  }
+  function saveToTagPool(fieldKey, value) {
+    if (!value || !fieldKey) return;
+    var pool = getTagPool(fieldKey);
+    if (pool.indexOf(value) < 0) { pool.push(value); if (pool.length > 50) pool.shift(); Store.save(); }
+  }
+
+
   function showStudyCategoryForm() {
-    openModal('<h3>新建学习项目</h3>' +
-      '<input id="scat-name" placeholder="项目名称（如：考研、教资）">' +
-      '<div class="form-actions"><button class="btn-secondary" id="scat-cancel">返回</button><button class="btn-primary" id="scat-save">创建</button></div>');
+    var pal = ["#a9c4b5", "#bcd3cb", "#aec9cf", "#bcd0c0", "#b0cdd6", "#c3d7c8", "#c4bda9", "#cfbcd3"];
+    var pIdx = 0;
+    var html = ''
+      + '<h3 style="margin:0 0 10px;">\u65B0\u5EFA\u5B66\u4E60\u9879\u76EE</h3>'
+      + '<div class="row"><label>\u9879\u76EE\u540D\u79F0</label><input id="scat-name" placeholder="\u5982\uFF1A\u8003\u7814\u3001\u6559\u8D44\u3001\u82F1\u8BED"></div>'
+      + '<div style="margin:10px 0;"><label style="font-size:13px;color:#5f7a5a;font-weight:600;">\u6A21\u5757\u5217\u8868\uFF08\u70B9\u51FB\u6DFB\u52A0\uFF09:</label><div id="scat-mods" style="margin-top:6px;"></div></div>'
+      + '<button class="mini-btn" id="scat-addmod" style="margin-bottom:8px;">+ \u6DFB\u52A0\u6A21\u5757</button>'
+      + '<div style="margin:10px 0;font-size:13px;color:#5f7a5a;">\u9636\u6BB5\u8BBE\u7F6E:</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+      + '<label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:#f8f6f1;border-radius:6px;cursor:pointer;"><input type="radio" name="scat-phase" value="default" checked> \u57FA\u7840\u5B66\u4E60 / \u63D0\u5347\u9636\u6BB5</label>'
+      + '<label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:#f8f6f1;border-radius:6px;cursor:pointer;"><input type="radio" name="scat-phase" value="single"> \u53EA\u4E00\u4E2A\u9636\u6BB5</label>'
+      + '<label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:#f8f6f1;border-radius:6px;cursor:pointer;"><input type="radio" name="scat-phase" value="custom"> \u81EA\u5B9A\u4E49\u9636\u6BB5\u540D</label>'
+      + '</div>'
+      + '<div id="scat-custom-phases" style="display:none;margin-bottom:10px;">'
+      + '<input id="scat-phase1" placeholder="\u9636\u6BB51\u540D\u79F0" value="\u57FA\u7840\u5B66\u4E60" style="width:45%;margin-right:4px;">'
+      + '<input id="scat-phase2" placeholder="\u9636\u6BB52\u540D\u79F0" value="\u63D0\u5347\u9636\u6BB5" style="width:45%;">'
+      + '</div>'
+      + '<p class="hint" style="font-size:12px;">\u63D0\u793A\uFF1A\u6BCF\u4E2A\u5B66\u4E60\u9879\u76EE\u7684\u6A21\u5757\u90FD\u662F\u72EC\u7ACB\u7684\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u9879\u76EE\u3002</p>'
+      + '<div class="form-actions"><button class="btn-secondary" id="scat-cancel">\u8FD4\u56DE</button><button class="btn-primary" id="scat-save">\u521B\u5EFA</button></div>';
+    openModal(html);
+    /* 模块列表渲染 */
+    var modList = [];
+    function renderMods() {
+      var box = $("scat-mods"); if (!box) return;
+      box.innerHTML = "";
+      if (modList.length === 0) { box.innerHTML = '<p class="hint" style="font-size:12px;">\u8FD8\u6CA1\u6709\u6DFB\u52A0\u6A21\u5757\uFF0C\u70B9\u4E0A\u65B9\u201C+\u6DFB\u52A0\u6A21\u5757\u201D</p>'; return; }
+      modList.forEach(function(m, i) {
+        var row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;padding:4px 8px;background:#f8f6f1;border-radius:6px;";
+        row.innerHTML = '<span style="width:12px;height:12px;border-radius:50%;background:' + m.color + ';flex-shrink:0;"></span>'
+          + '<span style="flex:1;font-size:14px;">' + esc(m.name) + '</span>'
+          + '<button class="mini-btn" data-rmmod="' + i + '">\u5220\u9664</button>';
+        box.appendChild(row);
+      });
+      /* 绑定删除 */
+      box.querySelectorAll("[data-rmmod]").forEach(function(btn) {
+        btn.onclick = function () { var idx = parseInt(this.getAttribute("data-rmmod")); modList.splice(idx, 1); renderMods(); };
+      });
+    }
+    renderMods();
+    /* 添加模块 */
+    $("scat-addmod").onclick = function () {
+      var n = prompt("\u8F93\u5165\u6A21\u5757\u540D\u79F0\uFF08\u5982\uFF1A\u5355\u8BCD\u3001\u53E3\u8BED\u3001\u77ED\u7247\u9605\u8BFB\uFF09:");
+      if (!n || !n.trim()) return;
+      modList.push({ name: n.trim(), color: pal[pIdx % pal.length] });
+      pIdx++;
+      renderMods();
+    };
+    /* 阶段类型切换 */
+    document.querySelectorAll("[name='scat-phase']").forEach(function(r) {
+      r.onchange = function () { $("scat-custom-phases").style.display = this.value === "custom" ? "" : "none"; };
+    });
+    /* 取消/保存 */
     $("scat-cancel").onclick = closeModal;
     $("scat-save").onclick = function () {
-      var name = ($("scat-name").value || "").trim(); if (!name) return;
-      Store.data.study.categories.push({ name: name, modules: defaultModules() });
+      var name = ($("scat-name").value || "").trim();
+      if (!name) { toast("\u8BF7\u8F93\u5165\u9879\u76EE\u540D\u79F0"); return; }
+      if (modList.length === 0) { toast("\u8BF7\u81F3\u5C11\u6DFB\u52A0\u4E00\u4E2A\u6A21\u5757"); return; }
+      var phaseType = document.querySelector("[name='scat-phase']:checked").value;
+      /* 构建阶段列表（含默认字段） */
+      var defaultFieldsBasic = [
+        { key: "date", type: "date", label: "\u65E5\u671F" },
+        { key: "courseName", type: "text", label: "\u8BFE\u7A0B\u540D\u79F0" },
+        { key: "lessonNo", type: "number", label: "\u8BFE\u7A0B\u5E8F\u53F7" },
+        { key: "note", type: "note", label: "\u7B14\u8BB0" }
+      ];
+      var defaultFieldsImprove = [
+        { key: "date", type: "date", label: "\u65E5\u671F" },
+        { key: "paperName", type: "text", label: "\u8BD5\u5377\u540D\u79F0" },
+        { key: "chapterNo", type: "number", label: "\u7AE0\u8282\u5E8F\u53F7" },
+        { key: "pageRange", type: "text", label: "\u9875\u7801" },
+        { key: "status", type: "status", label: "\u72B6\u6001", options: ["\u5F85\u6279\u6539", "\u521D\u6B21\u6279\u6539\uFF0C\u672A\u590D\u4E60", "\u5DF2\u590D\u4E60"] },
+        { key: "note", type: "note", label: "\u7B14\u8BB0" }
+      ];
+      var defaultFieldsSimple = [
+        { key: "date", type: "date", label: "\u65E5\u671F" },
+        { key: "itemName", type: "text", label: "\u540D\u79F0" },
+        { key: "note", type: "note", label: "\u7B14\u8BB0" }
+      ];
+      var phases = [];
+      if (phaseType === "single") {
+        phases = [{ key: "p1", name: "\u5B66\u4E60", color: pal[0], fields: defaultFieldsSimple }];
+      } else if (phaseType === "custom") {
+        var p1 = ($("scat-phase1").value || "").trim() || "\u57FA\u7840\u5B66\u4E60";
+        var p2 = ($("scat-phase2").value || "").trim() || "\u63D0\u5347\u9636\u6BB5";
+        phases = [{ key: "p1", name: p1, color: pal[0], fields: clone(defaultFieldsBasic) }, { key: "p2", name: p2, color: pal[1], fields: clone(defaultFieldsImprove) }];
+      } else {
+        phases = [{ key: "p1", name: "\u57FA\u7840\u5B66\u4E60", color: pal[0], fields: clone(defaultFieldsBasic) }, { key: "p2", name: "\u63D0\u5347\u9636\u6BB5", color: pal[1], fields: clone(defaultFieldsImprove) }];
+      }
+      var modules = modList.map(function(m, i) {
+        var modPhases = phases.map(function (p, pi) {
+          return { key: m.name + "_" + p.key, name: p.name, color: m.color, fields: p.fields ? clone(p.fields) : null };
+        });
+        var records = {};
+        modPhases.forEach(function (mp) { records[mp.key] = []; });
+        return {
+          name: m.name,
+          barColor: m.color,
+          phases: modPhases,
+          records: records
+        };
+      });
+      Store.data.study.categories.push({ name: name, modules: modules });
       state.cat = Store.data.study.categories.length - 1;
-      state.mod = 0; Store.save(); closeModal();
-      renderStudyNav(); renderStudyMain(); toast("已创建「" + name + "」");
+      state.mod = 0;
+      state.phase = modules[0].phases[0].key;
+      Store.save(); closeModal();
+      renderStudyNav(); renderStudyMain();
+      toast("\u5DF2\u521B\u5EFA\u300C" + name + "\u300D");
     };
   }
   /* ============ 娱乐 —— 小说 ============ */
@@ -3502,12 +4413,16 @@
       if (t.transfer && t.transferType) line += ' · 换乘：' + esc(t.transferType) + " " + esc(t.transferInfo || "");
       return '<div class="spot-traffic-next"><span class="sec-label">从此处到下一景点</span><div>去：' + line + '</div></div>';
     },
-    gaode: function (s) { return '<div class="spot-gaode"><button class="mini-btn" data-gaode data-from="' + esc(s.gaodeFrom || "") + '" data-to="' + esc(s.gaodeTo || s.name || "") + '">高德导航</button></div>'; }
+    gaode: function (s) { return '<div class="spot-gaode"><button class="mini-btn" data-gaode data-from="' + esc(s.gaodeFrom || "") + '" data-to="' + esc(s.gaodeTo || s.name || "") + '">高德导航</button></div>'; },
+    mapPhotos: function (s) {
+      if (!s.mapPhotos || !s.mapPhotos.length) return "";
+      return '<div class="spot-map-photos"><span class="sec-label">地图截图</span><div class="photos">' + s.mapPhotos.map(function(p){return '<img src="'+esc(p)+'">';}).join("")+'</div></div>';
+    }
   };
   function renderSpotCard(s, di, si, tabs) {
     var view = state.spotViewMode || "all";
     var showAll = view === "all", showNote = view === "note" || showAll, showTraffic = view === "traffic" || showAll;
-    var order = s.sectionOrder || ["open", "note", "prevTraffic", "nextTraffic", "gaode"];
+    var order = s.sectionOrder || ["open", "note", "prevTraffic", "nextTraffic", "gaode", "mapPhotos"];
     var secs = [];
     order.forEach(function (k) {
       if (k === "open" && !showAll) return;
@@ -3566,6 +4481,12 @@
         '<div class="row"><label>起点</label><input id="ts-from" placeholder="起点名称" value="' + esc(it.gaodeFrom || prevName) + '"></div>' +
         '<div class="row"><label>终点</label><input id="ts-to" placeholder="终点名称" value="' + esc(it.gaodeTo || it.name) + '"></div>' +
       '</div>' +
+      '<div class="ts-section">' +
+        '<div class="filter-cat">地图（可添加截图/路线图）</div>' +
+        '<input id="ts-map-photo" type="file" accept="image/*" multiple style="margin:4px 0;">' +
+        (it.mapPhotos && it.mapPhotos.length ? '<div id="ts-map-preview" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">' + it.mapPhotos.map(function(p,i){return '<img src="'+esc(p)+'" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer;" data-mpi="'+i+'">';}).join("")+'</div>' : '') +
+        '<p class="hint" style="font-size:11px;">照片存入数据中，本地删除原文件不影响此处显示。</p>' +
+      '</div>' +
       '<div class="form-actions"><button class="btn-secondary" id="ts-cancel">返回</button><button class="btn-primary" id="ts-save">保存</button></div>');
     $("ts-cancel").onclick = closeModal;
     function toggleTransferRows(prefix) {
@@ -3580,6 +4501,21 @@
     }
     $("ts-prev-transfer").onchange = function () { toggleTransferRows("prev"); };
     $("ts-next-transfer").onchange = function () { toggleTransferRows("next"); };
+    /* 地图照片：读取已有 + 新增 */
+    var mapPhotoList = (it && it.mapPhotos) ? it.mapPhotos.slice() : [];
+    var mapPreviewArea = document.getElementById("ts-map-preview");
+    if (mapPreviewArea) {
+      mapPreviewArea.querySelectorAll("[data-mpi]").forEach(function(img) {
+        img.onclick = function () {
+          var idx = parseInt(this.getAttribute("data-mpi"));
+          if (!confirm("删除这张地图截图？")) return;
+          mapPhotoList.splice(idx, 1);
+          this.remove();
+          /* 刷新 data-mpi 索引 */
+          mapPreviewArea.querySelectorAll("[data-mpi]").forEach(function(el, ni) { el.setAttribute("data-mpi", String(ni)); });
+        };
+      });
+    }
     $("ts-save").onclick = function () {
       var name = $("ts-name").value.trim(); if (!name) { toast("请填写景点名称"); return; }
       var obj = s ? clone(s) : { id: uid() };
@@ -3587,10 +4523,30 @@
       obj.prevTransport = { type: $("ts-prev-type").value, info: $("ts-prev-info").value.trim(), transfer: $("ts-prev-transfer").checked, transferType: $("ts-prev-transfer-type").value, transferInfo: $("ts-prev-transfer-info").value.trim() };
       obj.nextTransport = { type: $("ts-next-type").value, info: $("ts-next-info").value.trim(), transfer: $("ts-next-transfer").checked, transferType: $("ts-next-transfer-type").value, transferInfo: $("ts-next-transfer-info").value.trim() };
       obj.gaodeFrom = $("ts-from").value.trim(); obj.gaodeTo = $("ts-to").value.trim();
-      // 清理旧字段（数据瘦身）
-      delete obj.mapText; delete obj.mapPhoto; delete obj.hotSpots; delete obj.hotPhotos; delete obj.recs; delete obj.recsHidden;
-      if (s) day.spots[spotIdx] = obj; else day.spots.push(obj);
-      Store.save(); closeModal(); renderTravelMain(); toast("已保存");
+      /* 地图照片 */
+      var mapFileInput = $("ts-map-photo");
+      var newMapFiles = (mapFileInput && mapFileInput.files) ? mapFileInput.files : [];
+      function commitSpot() {
+        if (mapPhotoList.length > 0) obj.mapPhotos = mapPhotoList;
+        else delete obj.mapPhotos;
+        // 清理旧字段（数据瘦身）
+        delete obj.mapText; delete obj.mapPhoto; delete obj.hotSpots; delete obj.hotPhotos; delete obj.recs; delete obj.recsHidden;
+        if (s) day.spots[spotIdx] = obj; else day.spots.push(obj);
+        Store.save(); closeModal(); renderTravelMain(); toast("已保存");
+      }
+      if (newMapFiles.length > 0) {
+        var pending = newMapFiles.length;
+        for (var fi2 = 0; fi2 < newMapFiles.length; fi2++) {
+          (function(file) {
+            var rd2 = new FileReader();
+            rd2.onload = function () { mapPhotoList.push(rd2.result); if (--pending === 0) commitSpot(); };
+            rd2.onerror = function () { if (--pending === 0) commitSpot(); };
+            rd2.readAsDataURL(file);
+          })(newMapFiles[fi2]);
+        }
+      } else {
+        commitSpot();
+      }
     };
   }
   function showDayTransferForm(trip, di) {
@@ -3979,7 +4935,7 @@
     if (!btn) return;
     var li = btn.closest("li"); if (!li) return; var id = li.getAttribute("data-id"); var act = btn.getAttribute("data-act");
     if (state.tab === "study") {
-      var m = curModule(); var arr = state.phase === "basic" ? m.basic : m.improve;
+      var m = curModule(); var arr = curPhaseRecords();
       var it = arr.filter(function (x) { return x.id === id; })[0];
       if (act === "del") { if (!confirm("删除这条？")) return; arr.splice(arr.indexOf(it), 1); Store.save(); renderStudyMain(); }
       else if (act === "edit") showStudyForm(id);
@@ -4034,6 +4990,44 @@
     else if (tab === "life") { renderLifeNav(); renderLifeMain(); }
     else if (tab === "settings") renderSettings();
   }
+  function openHelp() {
+    var d = Store.data || {};
+    var ent = d.ent || {};
+    var life = d.life || {};
+    var ns = (ent.novels ? ent.novels.length : 0);
+    var nm = (life.memo ? life.memo.length : 0);
+    var nw = (life.weight ? life.weight.length : 0);
+    var html = ''
+      + '<div style="max-height:72vh;overflow:auto;-webkit-overflow-scrolling:touch;">'
+      + '<h3 style="margin:0 0 4px;">使用说明 / 备份小贴士</h3>'
+      + '<p class="hint" style="margin-top:0;">你的工作台数据只存在这台设备的浏览器里，不会上传任何服务器。换手机/电脑、清缓存、重装都会丢，靠"备份"来搬家。</p>'
+      + '<h4 style="margin:14px 0 4px;">一、备份（导出）</h4>'
+      + '<ol style="margin:4px 0;padding-left:20px;line-height:1.8;">'
+      + '<li>进 <b>设置 → 数据备份</b></li>'
+      + '<li>点「导出数据」，下载文件：<code>小李的工作台备份-年月日.json</code></li>'
+      + '<li>建议立刻存到 <b>百度网盘</b>（你已是会员，上传快又稳）</li>'
+      + '</ol>'
+      + '<h4 style="margin:14px 0 4px;">二、换设备 / 恢复（导入）</h4>'
+      + '<ol style="margin:4px 0;padding-left:20px;line-height:1.8;">'
+      + '<li>新设备打开工作台 → <b>设置 → 数据备份 → 导入数据</b></li>'
+      + '<li>选你存到百度网盘的 json 文件</li>'
+      + '<li>确认"覆盖"，数据即恢复</li>'
+      + '</ol>'
+      + '<p class="hint" style="color:#b00020;">注意：导入会覆盖当前数据。导入前先在本机导一份备份更稳妥；文件名带日期，多留几份不同日期的备份更保险。</p>'
+      + '<h4 style="margin:14px 0 4px;">三、手机 ↔ 电脑 共享（推荐姿势）</h4>'
+      + '<ol style="margin:4px 0;padding-left:20px;line-height:1.8;">'
+      + '<li>在 A 设备点「导出」→ 传到百度网盘</li>'
+      + '<li>在 B 设备从百度网盘下载该 json → 点「导入」</li>'
+      + '<li>反过来同理。虽是手动，但免费、国内畅通、绝不会丢</li>'
+      + '</ol>'
+      + '<p class="hint">当前数据：备忘 ' + nm + ' 条 · 体重 ' + nw + ' 条 · 小说 ' + ns + ' 部。记得常备份～</p>'
+      + '<div style="text-align:right;margin-top:12px;"><button class="btn-primary" id="help-ok">我知道了</button></div>'
+      + '</div>';
+    openModal(html);
+    var ok = document.getElementById("help-ok");
+    if (ok) ok.onclick = closeModal;
+  }
+
   function renderSettings() {
     $("set-icon").value = Store.data.settings.iconStyle;
     $("set-rain").checked = !!Store.data.settings.rainAlert;
@@ -4060,15 +5054,19 @@
       };
     });
     $("set-clear").onclick = function () { if (!confirm("确定清空全部数据？不可恢复。")) return; Store.data = defaultData(); Store.save(); state.lifeSel = "weather"; switchTab("home"); toast("已清空"); };
+    $("set-help").onclick = openHelp;
     $("set-export").onclick = function () {
       try {
-        var raw = JSON.stringify(Store.data, null, 2);
+        var backupObj = clone(Store.data);
+        backupObj._backupTime = new Date().toISOString();
+        backupObj._backupVersion = "2.1";
+        var raw = JSON.stringify(backupObj, null, 2);
         var blob = new Blob([raw], { type: "application/json" });
         var a = document.createElement("a");
         var d = new Date();
         var pad = function (n) { return (n < 10 ? "0" : "") + n; };
         a.href = URL.createObjectURL(blob);
-        a.download = "小李的工作台备份-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".json";
+        a.download = "小李的工作台备份-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "_" + pad(d.getHours()) + pad(d.getMinutes()) + ".json";
         document.body.appendChild(a);
         a.click();
         setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -4085,17 +5083,56 @@
         try {
           var obj = JSON.parse(reader.result);
           if (!obj || typeof obj !== "object" || !obj.settings || !obj.life) { toast("文件格式不对，请选择导出的备份文件"); return; }
-          if (!confirm("导入将覆盖当前数据，确定继续？")) return;
-          localStorage.setItem(KEY, JSON.stringify(obj));
-          Store.load();
-          normalizeLifeSelection();
-          applyBg(document.body, Store.data.settings.globalBg);
-          applyFont();
-          applyMemoPriorityColors();
-          applyHighlightColor();
-          renderBottomNav();
-          switchTab("home");
-          toast("导入成功，数据已恢复");
+          /* 统计备份数据量 */
+          var ent = obj.ent || {};
+          var life = obj.life || {};
+          var study = obj.study || {};
+          var nNovels = (ent.novels ? ent.novels.length : 0);
+          var nMemo = (life.memo ? life.memo.length : 0);
+          var nWeight = (life.weight ? life.weight.length : 0);
+          var nPeriod = (life.period && life.period.records ? life.period.records.length : 0);
+          var nAccounts = (life.accounts && life.accounts.entries ? life.accounts.entries.length : 0);
+          var nInsp = (ent.inspiration ? ent.inspiration.length : 0);
+          var nCats = (study.categories ? study.categories.length : 0);
+          var totalItems = nNovels + nMemo + nWeight + nPeriod + nAccounts + nInsp;
+          /* 备份时间 */
+          var bt = obj._backupTime;
+          var timeStr = "";
+          if (bt) {
+            try { var td = new Date(bt); timeStr = td.getFullYear() + "-" + ("0"+(td.getMonth()+1)).slice(-2) + "-" + ("0"+td.getDate()).slice(-2) + " " + ("0"+td.getHours()).slice(-2) + ":" + ("0"+td.getMinutes()).slice(-2); } catch(e) { timeStr = bt; }
+          } else {
+            timeStr = "未知（旧版备份）";
+          }
+          /* 预览弹窗 */
+          var previewHtml = ''
+            + '<h3 style="margin:0 0 8px;">导入预览</h3>'
+            + '<p class="hint" style="margin-top:0;">备份时间：<b>' + timeStr + '</b></p>'
+            + '<div style="background:#f8f6f1;border-radius:8px;padding:10px 14px;margin:8px 0;line-height:1.9;font-size:14px;">'
+            + '备忘 <b>' + nMemo + '</b> 条<br>'
+            + '体重 <b>' + nWeight + '</b> 条<br>'
+            + '小说 <b>' + nNovels + '</b> 部<br>'
+            + '经期 <b>' + nPeriod + '</b> 条<br>'
+            + '记账 <b>' + nAccounts + '</b> 笔<br>'
+            + '灵感 <b>' + nInsp + '</b> 条<br>'
+            + '学习项目 <b>' + nCats + '</b> 个<br>'
+            + '</div>'
+            + '<p style="color:#b00020;margin:6px 0;font-size:13px;">注意：导入将覆盖当前全部数据！建议先在本机「导出」一份当前备份。</p>'
+            + '<div style="text-align:right;margin-top:10px;"><button class="btn-primary" id="import-confirm" style="margin-right:8px;">确认导入</button><button class="mini-btn" id="import-cancel">取消</button></div>';
+          openModal(previewHtml);
+          $("import-confirm").onclick = function () {
+            closeModal();
+            localStorage.setItem(KEY, JSON.stringify(obj));
+            Store.load();
+            normalizeLifeSelection();
+            applyBg(document.body, Store.data.settings.globalBg);
+            applyFont();
+            applyMemoPriorityColors();
+            applyHighlightColor();
+            renderBottomNav();
+            switchTab("home");
+            toast("导入成功，数据已恢复（共 " + totalItems + " 条记录）");
+          };
+          $("import-cancel").onclick = closeModal;
         } catch (e) { toast("导入失败：文件无法解析"); }
       };
       reader.onerror = function () { toast("读取文件失败"); };
@@ -4110,6 +5147,8 @@
 
   function init() {
     Store.load();
+    /* 数据丢失检测与自动恢复 */
+    checkDataLossAndRecover();
     scheduleSleepNotify();
     normalizeLifeSelection();
     applyBg(document.body, Store.data.settings.globalBg);
@@ -4121,12 +5160,19 @@
     $("fact-refresh").onclick = renderFactList;
     $("home-thumb-pick").onclick = openThumbPicker;
 
+    /* 首页快速记一笔 */
+    $("qa-memo").onclick = openQuickMemo;
+    $("qa-weight").onclick = openQuickWeight;
+    $("qa-period").onclick = openQuickPeriod;
+    $("qa-account").onclick = openQuickAccount;
+    $("qa-toggle").onclick = openQuickAddSettings;
+
     $("study-fold").onclick = function () { var n = $("study-nav"); n.classList.toggle("collapsed"); n.parentElement.classList.toggle("collapsed", n.classList.contains("collapsed")); this.textContent = n.classList.contains("collapsed") ? "›" : "‹"; };
     var pts = document.querySelectorAll(".phase");
     for (var p = 0; p < pts.length; p++) {
-      pts[p].addEventListener("click", function () { state.phase = this.getAttribute("data-phase"); renderStudyMain(); });
+      pts[p].addEventListener("click", function () { state.phase = this.getAttribute("data-pkey"); renderStudyMain(); });
     }
-    $("study-color").onclick = function () { var m = curModule(); if (!m) return; openColorPicker(state.phase === "basic" ? m.basicColor : m.improveColor, function (c) { setModuleColor(c); }); };
+    $("study-color").onclick = function () { var m = curModule(); if (!m) return; ensurePhases(m); var cp = curPhase(); openColorPicker(cp ? cp.color : m.barColor, function (cc) { setModuleColor(cc); }); };
     $("study-add").onclick = function () { showStudyForm(null); };
     $("study-new-cat").onclick = function () { showStudyCategoryForm(); };
     $("study-list").addEventListener("click", onListClick);
@@ -4157,6 +5203,8 @@
     renderBottomNav();
     if (typeof fetch === "function" && Store.data.life.weather.city && Store.data.life.weather.temp == null) doFetchWeather(Store.data.life.weather.city);
     renderHome();
+    /* 使用说明只弹一次（永久记住，不依赖 Store.data，防止数据丢失后重复弹） */
+    if (!localStorage.getItem(SEEN_TIPS_KEY)) { localStorage.setItem(SEEN_TIPS_KEY, "1"); openHelp(); }
     toast("数据已加载，可放心使用");
   }
 

@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="小李的工作台">
 <title>小李的工作台</title>
-<link rel="manifest" href="manifest.json?v=20260729y">
-<link rel="stylesheet" href="style.css?v=20260729y">
+<link rel="manifest" href="manifest.json?v=20260729ag">
+<link rel="stylesheet" href="style.css?v=20260729ag">
 </head>
 <body>
 <header id="topbar">
@@ -38,6 +38,15 @@
       <div class="card-title">生活速览 <button class="mini-btn" id="home-thumb-pick">选择模块</button></div>
       <div id="home-thumbs" class="home-thumbs"></div>
     </div>
+    <div class="card quick-add-card" id="quick-add-card">
+      <div class="card-title">快速记一笔 <button class="mini-btn" id="qa-toggle" title="显示/隐藏按钮">编辑</button></div>
+      <div id="home-quick-add" class="quick-add-grid">
+        <button class="qa-btn" id="qa-memo">备忘</button>
+        <button class="qa-btn" id="qa-weight">体重</button>
+        <button class="qa-btn" id="qa-period">经期</button>
+        <button class="qa-btn" id="qa-account">记账</button>
+      </div>
+    </div>
   </section>
 
   <!-- ============ 学习 ============ -->
@@ -53,7 +62,7 @@
           <span id="module-name">请选择模块</span>
           <span class="module-dot" id="module-dot"></span>
         </div>
-        <div class="phase-tabs">
+        <div class="phase-tabs" id="study-phase-tabs">
           <button class="phase active" data-phase="basic">基础学习</button>
           <button class="phase" data-phase="improve">提升阶段</button>
         </div>
@@ -116,8 +125,9 @@
   <!-- ============ 个性化 ============ -->
   <section class="page" data-page="settings" hidden>
     <div class="card">
-      <div class="card-title">个性化设置</div>
-      <div class="set-row"><span>图标风格</span>
+    <div class="card-title">个性化设置</div>
+    <button class="btn-primary" id="set-help" style="width:100%;margin-bottom:14px;">使用说明 / 备份小贴士</button>
+    <div class="set-row"><span>图标风格</span>
         <select id="set-icon"><option value="guofeng">国风水墨</option><option value="oil">油画小花</option><option value="weiding">未定事件簿</option></select>
       </div>
       <div class="set-row"><span>界面字体</span>
@@ -156,6 +166,6 @@
 <div id="toast"></div>
 <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
 
-<script src="app.js?v=20260729y"></script>
+<script src="app.js?v=20260729ag"></script>
 </body>
 </html>
