@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>动态卡面 · 未定事件簿</title>
+<style>
+  :root{
+    --cream:#fbf6f3; --card:#ffffff; --rose:#c98a9b; --rose-d:#a85f74; --rose-l:#f6e7ec;
+    --gold:#cBa87f; --gold-d:#a9855c; --ink:#5a4450; --muted:#9a8893; --line:#f0e0e6;
+    --radius:20px; --shadow:0 8px 24px rgba(168,95,116,.16);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;color:var(--ink);background:
+     radial-gradient(1200px 600px at 80% -10%, #fdeef2 0%, transparent 60%),
+     radial-gradient(900px 500px at -10% 110%, #fbf1e6 0%, transparent 55%),
+     var(--cream);
+     min-height:100%;}
+  .wrap{max-width:920px;margin:0 auto;padding:20px 16px 48px;}
+  .topbar{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+  .avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--gold));
+    display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:var(--shadow);
+    animation:breathe 3.4s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(201,138,155,.45), 0 8px 24px rgba(168,95,116,.18);}50%{box-shadow:0 0 0 10px rgba(201,138,155,0), 0 10px 28px rgba(168,95,116,.26);}}
+  .titles h1{margin:0;font-size:20px;font-weight:800;letter-spacing:.5px;}
+  .titles p{margin:2px 0 0;font-size:11px;color:var(--muted);}
+  .pc-tip{margin:10px 0 16px;font-size:12px;color:var(--rose-d);background:var(--rose-l);border:1px solid #f0d6de;
+    border-radius:14px;padding:9px 12px;}
+  .pc-tip b{color:var(--rose-d);}
+
+  .drop{border:2px dashed var(--rose);border-radius:18px;padding:26px;text-align:center;color:var(--rose-d);
+    font-size:14px;cursor:pointer;transition:.18s;background:linear-gradient(180deg,#fffdfc,#fdf3f6);}
+  .drop:hover,.drop.over{border-color:var(--rose-d);background:var(--rose-l);}
+  .drop .big{font-size:15px;font-weight:700;}
+  .drop .small{font-size:12px;color:var(--muted);margin-top:4px;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:18px;}
+  .gcard{background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);position:relative;
+    transition:.18s;}
+  .gcard:hover{transform:translateY(-3px);}
+  .gcard .thumb{width:100%;aspect-ratio:9/16;background:#2b2330 center/cover no-repeat;display:block;cursor:pointer;}
+  .gcard .ph{width:100%;aspect-ratio:9/16;background:linear-gradient(135deg,#efe2e8,#f6ecf0);display:flex;align-items:center;justify-content:center;font-size:30px;color:#d9c3cc;cursor:pointer;}
+  .gcard .meta{padding:9px 11px 11px;}
+  .gcard .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .gcard .sz{font-size:11px;color:var(--muted);margin-top:2px;}
+  .gcard .acts{display:flex;gap:6px;margin-top:8px;}
+  .gcard .acts button{flex:1;border:0;border-radius:10px;padding:6px 0;font-size:12px;font-weight:600;cursor:pointer;}
+  .gcard .play{background:linear-gradient(135deg,var(--rose),var(--rose-d));color:#fff;}
+  .gcard .del{background:#fff;color:#b06a6a;border:1px solid #f0d6d6;}
+
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 0;}
+
+  /* 缓存面板 */
+  .cache{margin-top:26px;background:var(--card);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
+  .cache h2{margin:0 0 4px;font-size:15px;color:var(--rose-d);display:flex;align-items:center;gap:6px;}
+  .cache .desc{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.6;}
+  .cache .stat{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+  .cache .pill{font-size:12px;background:var(--rose-l);color:var(--rose-d);padding:5px 12px;border-radius:20px;}
+  .cache .clist{max-height:200px;overflow:auto;margin:8px 0;border-top:1px solid var(--line);}
+  .cache .crow{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:13px;}
+  .cache .crow .cnm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cache .crow .csz{color:var(--muted);font-size:12px;min-width:70px;text-align:right;}
+  .cache .crow .cdel{color:#b06a6a;border:0;background:#fff;cursor:pointer;font-size:12px;border:1px solid #f0d6d6;border-radius:8px;padding:4px 9px;}
+  .btn{border:none;border-radius:12px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;
+    background:linear-gradient(135deg,var(--rose),var(--rose-d));color:#fff;box-shadow:var(--shadow);transition:.15s;}
+  .btn:active{transform:translateY(1px);}
+  .btn.ghost{background:#fff;color:var(--rose-d);border:1.5px solid var(--rose);box-shadow:none;}
+  .msg{font-size:12px;color:var(--rose-d);min-height:16px;margin-top:8px;}
+
+  /* 全屏壁纸播放弹层 */
+  .modal{position:fixed;inset:0;background:#000;display:none;z-index:50;}
+  .modal.show{display:block;}
+  .modal .stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .modal video{width:100%;height:100%;object-fit:cover;background:#000;transition:transform .25s;}
+  .modal .hint{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.45);color:#fff;font-size:12px;padding:7px 14px;border-radius:20px;backdrop-filter:blur(4px);opacity:0;transition:.3s;pointer-events:none;z-index:52;}
+  .modal:hover .hint,.modal.show .hint{opacity:1;}
+  .modal .mbar{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;z-index:52;background:rgba(40,30,36,.62);padding:9px 14px;border-radius:16px;backdrop-filter:blur(8px);opacity:.28;transition:.3s;max-width:96vw;flex-wrap:wrap;justify-content:center;}
+  .modal:hover .mbar{opacity:1;}
+  .modal .mbar button{border:0;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .modal .fs{background:var(--gold);color:#fff;}
+  .modal .close{background:rgba(255,255,255,.9);color:var(--rose-d);}
+  .modal .rot{background:rgba(243,228,234,.92);color:var(--rose-d);}
+  .modal .save{background:linear-gradient(135deg,var(--rose),var(--rose-d));color:#fff;}
+  .modal .mbar button:disabled{opacity:.55;cursor:not-allowed;}
+  /* 录制进度 */
+  .recbar{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.65);color:#fff;padding:18px 24px;border-radius:18px;text-align:center;z-index:55;display:none;backdrop-filter:blur(6px);min-width:220px;}
+  .recbar.show{display:block;}
+  .recbar .t1{font-size:15px;font-weight:700;margin-bottom:6px;}
+  .recbar .t2{font-size:12px;opacity:.85;}
+</style>
+</head>
+<body>
+<div id="fileWarn" style="display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a5a1a;border-radius:14px;padding:12px 14px;margin:0 0 14px;font-size:13px;line-height:1.7;">
+  ⚠️ 检测到你是<strong>直接双击</strong>打开本页（地址以 <code>file://</code> 开头）。浏览器会<strong>禁用视频存储（IndexedDB）</strong>，导致动态卡面无法保存。<br>
+  👉 请改用：双击同目录里的 <strong>start-workbench.bat</strong>，它会用 <code>http://localhost</code> 打开，动态卡面即可正常导入与欣赏。
+</div>
+<script>if(location.protocol==='file:'){var w=document.getElementById('fileWarn');if(w)w.style.display='block';}</script>
+<div class="wrap">
+  <div class="topbar">
+    <div class="avatar">💌</div>
+    <div class="titles">
+      <h1>动态卡面</h1>
+      <p>未定事件簿 · 把心动的动态卡面留在电脑上慢慢欣赏</p>
+    </div>
+  </div>
+
+  <div class="pc-tip">💡 <b>建议在电脑端使用</b>（手机端无需安装此模块）。视频只存在你这台电脑的浏览器里，<b>不上传任何服务器、也不占手机空间</b>；配合「清理缓存」随时释放空间。</div>
+
+  <label class="drop" id="drop">
+    <div class="big">＋ 选择或拖入 MP4 视频（可多选）</div>
+    <div class="small">支持未定事件簿导出的动态卡面 / 任意 MP4，单文件建议 ≤ 500MB</div>
+    <input id="file" type="file" accept="video/mp4,.mp4" multiple hidden />
+  </label>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty">还没有动态卡面，挑几段 MP4 加进来吧～</div>
+
+  <!-- 缓存清理（独立功能） -->
+  <div class="cache">
+    <h2>🧹 缓存清理</h2>
+    <p class="desc">下列视频都保存在本机浏览器存储（IndexedDB）中，方便你随时离线全屏回看，也不会占用手机。清理后即从本机删除、释放空间（云端/手机不受影响，需要时重新导入即可）。</p>
+    <div class="stat">
+      <span class="pill" id="cntPill">共 0 个</span>
+      <span class="pill" id="sizePill">占用 0 MB</span>
+      <button class="btn ghost" id="clearAll">清空全部缓存</button>
+    </div>
+    <div class="clist" id="clist"></div>
+    <div class="msg" id="cmsg"></div>
+  </div>
+</div>
+
+  <div class="modal" id="modal">
+  <div class="hint">移动鼠标显示按钮 · 按 Esc 或点击空白退出 · 点击画面暂停/播放</div>
+  <div class="stage">
+    <video id="player" playsinline loop muted></video>
+  </div>
+  <div class="mbar">
+    <button class="rot" id="rotLeftBtn" title="左转 90°">↺ 左转</button>
+    <button class="rot" id="rotRightBtn" title="右转 90°">↻ 右转</button>
+    <button class="rot" id="rotResetBtn" title="还原">↩ 还原</button>
+    <button class="save" id="saveBtn" title="把当前旋转角度永久写进新视频并下载">💾 永久转正</button>
+    <button class="fs" id="fsBtn">⛶ 全屏</button>
+    <button class="close" id="closeBtn">关闭</button>
+  </div>
+  <div class="recbar" id="recbar">
+    <div class="t1">正在录制转正视频…</div>
+    <div class="t2" id="recText">请保持页面在前台，不要最小化</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var DB_NAME="lifeCardwallDB", STORE="videos";
+  var db=null, ready=false, failed=false;
+  var $ = function(id){ return document.getElementById(id); };
+  var grid=$("grid"), empty=$("empty"), drop=$("drop"), file=$("file");
+  var cntPill=$("cntPill"), sizePill=$("sizePill"), clist=$("clist"), cmsg=$("cmsg");
+
+  /* ---------- IndexedDB ---------- */
+  function openDB(){
+    return new Promise(function(res,rej){
+      if(!window.indexedDB){ rej(new Error("no-idb")); return; }
+      var req=indexedDB.open(DB_NAME,1);
+      req.onupgradeneeded=function(e){ var d=e.target.result; if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE,{keyPath:"id"}); };
+      req.onsuccess=function(e){ db=e.target.result; res(db); };
+      req.onerror=function(e){ rej(e); };
+    });
+  }
+  function tx(mode){ return db.transaction(STORE,mode).objectStore(STORE); }
+  function put(rec){ return new Promise(function(res,rej){ var r=tx("readwrite").put(rec); r.onsuccess=function(){res();}; r.onerror=function(){rej(r.error);}; }); }
+  function getAll(){ return new Promise(function(res,rej){ var r=tx("readonly").getAll(); r.onsuccess=function(){res(r.result||[]);}; r.onerror=function(){rej(r.error);}; }); }
+  function del(id){ return new Promise(function(res,rej){ var r=tx("readwrite").delete(id); r.onsuccess=function(){res();}; r.onerror=function(){rej(r.error);}; }); }
+  function clearAll(){ return new Promise(function(res,rej){ var r=tx("readwrite").clear(); r.onsuccess=function(){res();}; r.onerror=function(){rej(r.error);}; }); }
+
+  /* ---------- 缩略图 ---------- */
+  function genThumb(blob){
+    return new Promise(function(res){
+      try{
+        var v=document.createElement("video"); v.preload="metadata"; v.muted=true;
+        var url=URL.createObjectURL(blob); v.src=url;
+        var fin=function(){ try{URL.revokeObjectURL(url);}catch(e){} };
+        v.onloadedmetadata=function(){ try{ v.currentTime=Math.min(0.2,(v.duration||2)/3); }catch(e){} };
+        v.onseeked=function(){
+          try{
+            var c=document.createElement("canvas");
+            var w=300, h=Math.round(w*(v.videoHeight/v.videoWidth||0.5625));
+            c.width=w; c.height=(h||169);
+            c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+            res(c.toDataURL("image/jpeg",0.72));
+          }catch(e){ res(""); } finally{ fin(); }
+        };
+        v.onerror=function(){ res(""); fin(); };
+        setTimeout(function(){ res(""); fin(); }, 6000);
+      }catch(e){ res(""); }
+    });
+  }
+
+  /* ---------- 渲染 ---------- */
+  var videos=[];
+  function fmtSize(b){ if(b>=1048576) return (b/1048576).toFixed(1)+" MB"; if(b>=1024) return (b/1024).toFixed(0)+" KB"; return b+" B"; }
+  function render(){
+    grid.innerHTML="";
+    if(!videos.length){ empty.style.display="block"; } else { empty.style.display="none"; }
+    var total=0;
+    videos.forEach(function(v){
+      total+=v.size||0;
+      var card=document.createElement("div"); card.className="gcard";
+      var media = v.thumb
+        ? '<div class="thumb" style="background-image:url('+JSON.stringify(v.thumb)+')"></div>'
+        : '<div class="ph">🎞️</div>';
+      card.innerHTML = media +
+        '<div class="meta"><div class="nm">'+esc(v.name)+'</div><div class="sz">'+fmtSize(v.size||0)+'</div>'+
+        '<div class="acts"><button class="play" data-id="'+v.id+'">▶ 播放</button>'+
+        '<button class="del" data-id="'+v.id+'">删除</button></div></div>';
+      grid.appendChild(card);
+    });
+    cntPill.textContent="共 "+videos.length+" 个";
+    sizePill.textContent="占用 "+fmtSize(total);
+    renderCacheList();
+  }
+  function renderCacheList(){
+    clist.innerHTML="";
+    if(!videos.length){ clist.innerHTML='<div style="font-size:12px;color:#9a8893;padding:6px 2px;">暂无缓存</div>'; return; }
+    videos.forEach(function(v){
+      var row=document.createElement("div"); row.className="crow";
+      row.innerHTML='<span class="cnm">'+esc(v.name)+'</span><span class="csz">'+fmtSize(v.size||0)+'</span>'+
+        '<button class="cdel" data-id="'+v.id+'">删除</button>';
+      clist.appendChild(row);
+    });
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+  /* ---------- 导入 ---------- */
+  async function importFiles(fileList){
+    if(!ready){ cmsg.textContent="存储未就绪，请刷新页面后重试（需通过已发布的工作台网页打开本功能）。"; return; }
+    for(var i=0;i<fileList.length;i++){
+      var f=fileList[i];
+      if(!/mp4$/i.test(f.name) && f.type.indexOf("mp4")<0){ cmsg.textContent="已跳过非 MP4 文件："+f.name; continue; }
+      cmsg.textContent="正在导入："+f.name+"（生成封面中…）";
+      var thumb=await genThumb(f);
+      var rec={ id:"v"+Date.now()+"_"+Math.random().toString(36).slice(2,7), name:f.name, size:f.size, type:f.type||"video/mp4", addedAt:Date.now(), thumb:thumb, blob:f };
+      try{ await put(rec); videos.unshift(rec); render(); cmsg.textContent="已加入："+f.name; }
+      catch(e){ cmsg.textContent="保存失败："+f.name+"（存储可能已满，点「清理缓存」释放后重试）"; }
+    }
+    cmsg.textContent="导入完成，共 "+videos.length+" 个动态卡面。";
+  }
+
+  /* ---------- 播放（壁纸级全屏） ---------- */
+  var curId=null, curUrl=null, curRot=0; // 0/90/180/270
+  function play(id){
+    var v=videos.filter(function(x){return x.id===id;})[0]; if(!v) return;
+    curId=id; curRot=0; applyRot();
+    var player=$("player");
+    if(curUrl){ try{URL.revokeObjectURL(curUrl);}catch(e){} }
+    curUrl=URL.createObjectURL(v.blob);
+    player.src=curUrl;
+    $("modal").classList.add("show");
+    player.play().catch(function(){});
+    goFullscreen();
+  }
+  function applyRot(){ $("player").style.transform="rotate("+curRot+"deg)"; }
+  function rotLeft(){ curRot=(curRot-90+360)%360; applyRot(); }
+  function rotRight(){ curRot=(curRot+90)%360; applyRot(); }
+  function rotReset(){ curRot=0; applyRot(); }
+  $("rotLeftBtn").onclick=rotLeft;
+  $("rotRightBtn").onclick=rotRight;
+  $("rotResetBtn").onclick=rotReset;
+  $("closeBtn").onclick=function(){
+    var p=$("player"); p.pause(); p.removeAttribute("src"); p.load(); curRot=0; applyRot();
+    if(curUrl){ try{URL.revokeObjectURL(curUrl);}catch(e){} curUrl=null; }
+    if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
+    $("modal").classList.remove("show");
+  };
+  function goFullscreen(){
+    var stage=document.querySelector(".modal .stage");
+    if(stage.requestFullscreen){ stage.requestFullscreen().catch(function(){}); }
+    else if(document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen().catch(function(){}); }
+  }
+  $("fsBtn").onclick=function(){
+    var stage=document.querySelector(".modal .stage");
+    if(document.fullscreenElement){ document.exitFullscreen(); }
+    else if(stage.requestFullscreen){ stage.requestFullscreen(); }
+  };
+  $("player").onclick=function(){ var p=$("player"); if(p.paused) p.play(); else p.pause(); };
+  $("modal").addEventListener("click",function(e){ if(e.target===this) $("closeBtn").click(); });
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape" && $("modal").classList.contains("show")) $("closeBtn").click(); });
+
+  /* ---------- 永久转正并下载 ---------- */
+  function downloadBlob(blob,name){
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  }
+  $("saveBtn").onclick=function(){
+    var v=videos.filter(function(x){return x.id===curId;})[0]; if(!v){ alert("请先播放一个视频"); return; }
+    if(curRot===0){ alert("当前没有旋转，无需永久转正～先用「左转/右转」把它转到正的方向。"); return; }
+    var player=$("player"); player.pause();
+    var recbar=$("recbar"), recText=$("recText"); recbar.classList.add("show"); recText.textContent="准备中…";
+    setTimeout(function(){ doRecord(v,player,recbar,recText); },100);
+  };
+  async function doRecord(v,player,recbar,recText){
+    var srcVideo=null, audioCtx=null, recorder=null, finished=false;
+    try{
+      srcVideo=document.createElement("video");
+      srcVideo.src=curUrl; srcVideo.muted=true; srcVideo.playsInline=true; srcVideo.loop=false;
+      await new Promise(function(res,rej){
+        srcVideo.onloadedmetadata=function(){ res(); };
+        srcVideo.onerror=function(e){ rej(new Error("加载视频失败")); };
+        srcVideo.load();
+      });
+      var w=srcVideo.videoWidth||1280, h=srcVideo.videoHeight||720;
+      var swap=curRot%180!==0;
+      var canvas=document.createElement("canvas");
+      canvas.width=swap?h:w; canvas.height=swap?w:h;
+      var ctx=canvas.getContext("2d");
+      var stream=canvas.captureStream(30);
+      try{
+        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        var audioSrc=audioCtx.createMediaElementSource(srcVideo);
+        var dest=audioCtx.createMediaStreamDestination();
+        audioSrc.connect(dest);
+        // audioSrc.connect(audioCtx.destination); // 录制时不外放，避免干扰
+        if(dest.stream.getAudioTracks().length) dest.stream.getAudioTracks().forEach(function(t){ stream.addTrack(t); });
+      }catch(ae){ /* 忽略音频错误，至少能录画面 */ }
+      var mime="video/webm;codecs=vp9";
+      if(!MediaRecorder.isTypeSupported(mime)) mime="video/webm;codecs=vp8";
+      if(!MediaRecorder.isTypeSupported(mime)) mime="video/webm";
+      if(!MediaRecorder.isTypeSupported(mime)) throw new Error("浏览器不支持视频录制，请用 Chrome/Edge 最新版");
+      recorder=new MediaRecorder(stream,{mimeType:mime});
+      var chunks=[];
+      recorder.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+      recorder.onerror=function(e){ if(finished) return; finished=true; recbar.classList.remove("show"); alert("录制出错："+e.message); player.play().catch(function(){}); };
+      var startTime=0;
+      function drawFrame(){
+        ctx.save();
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.translate(canvas.width/2,canvas.height/2);
+        ctx.rotate(curRot*Math.PI/180);
+        ctx.drawImage(srcVideo,-w/2,-h/2);
+        ctx.restore();
+      }
+      srcVideo.onplay=function(){
+        startTime=Date.now(); recorder.start(200);
+        function loop(){
+          if(srcVideo.paused || srcVideo.ended || finished) return;
+          drawFrame();
+          var elapsed=Math.floor((Date.now()-startTime)/1000);
+          recText.textContent="已录制 "+elapsed+" 秒 · 共 "+Math.floor(srcVideo.duration||0)+" 秒 · 请保持页面在前台";
+          if(srcVideo.requestVideoFrameCallback) srcVideo.requestVideoFrameCallback(loop);
+          else requestAnimationFrame(loop);
+        }
+        if(srcVideo.requestVideoFrameCallback) srcVideo.requestVideoFrameCallback(loop);
+        else requestAnimationFrame(loop);
+      };
+      recorder.onstop=function(){
+        if(finished) return; finished=true;
+        recbar.classList.remove("show");
+        var blob=new Blob(chunks,{type:mime.split(";")[0]});
+        var ext=mime.indexOf("webm")>=0?".webm":".mp4";
+        var name=v.name.replace(/\.mp4$/i,"")+"_转正"+ext;
+        downloadBlob(blob,name);
+        if(audioCtx && audioCtx.state!=="closed") audioCtx.close().catch(function(){});
+        player.play().catch(function(){});
+      };
+      await srcVideo.play();
+      srcVideo.onended=function(){ if(recorder.state!=="inactive") recorder.stop(); };
+    }catch(err){
+      if(finished) return; finished=true;
+      recbar.classList.remove("show");
+      alert("永久转正失败："+(err&&err.message?err.message:err));
+      if(audioCtx && audioCtx.state!=="closed") audioCtx.close().catch(function(){});
+      player.play().catch(function(){});
+    }
+  }
+
+  /* ---------- 删除 / 清空 ---------- */
+  async function removeOne(id){
+    try{ await del(id); videos=videos.filter(function(x){return x.id!==id;}); render(); cmsg.textContent="已删除 1 个缓存。"; }
+    catch(e){ cmsg.textContent="删除失败："+e; }
+  }
+  $("clearAll").onclick=function(){
+    if(!videos.length){ cmsg.textContent="已经是空的啦～"; return; }
+    if(!confirm("确定清空全部动态卡面缓存？将从本机删除 "+videos.length+" 个视频，释放 "+fmtSize(videos.reduce(function(a,b){return a+(b.size||0);},0))+"。")) return;
+    clearAll().then(function(){ videos=[]; render(); cmsg.textContent="已清空全部缓存，空间已释放。"; })
+      .catch(function(e){ cmsg.textContent="清空失败："+e; });
+  };
+  grid.addEventListener("click",function(e){ var b=e.target.closest("button[data-id]"); if(!b)return; var id=b.getAttribute("data-id"); if(b.classList.contains("play")) play(id); else removeOne(id); });
+  clist.addEventListener("click",function(e){ var b=e.target.closest(".cdel"); if(!b)return; removeOne(b.getAttribute("data-id")); });
+
+  /* ---------- 拖拽 / 选择 ---------- */
+  drop.addEventListener("click",function(){ file.click(); });
+  file.addEventListener("change",function(){ if(file.files&&file.files.length) importFiles(file.files); file.value=""; });
+  ["dragover","dragenter"].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add("over");}); });
+  ["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove("over");}); });
+  drop.addEventListener("drop",function(e){ if(e.dataTransfer.files&&e.dataTransfer.files.length) importFiles(e.dataTransfer.files); });
+
+  /* ---------- 初始化 ---------- */
+  openDB().then(function(){ ready=true; return getAll(); }).then(function(list){ videos=list||[]; render(); })
+    .catch(function(){ failed=true; ready=false;
+      empty.style.display="block"; empty.textContent="⚠️ 本浏览器/打开方式暂不支持视频存储（多为本地双击打开所致）。请通过已发布的工作台网页打开「动态卡面」，即可正常保存与欣赏。";
+      cmsg.textContent="存储不可用：请用已发布的工作台网页（GitHub Pages）打开本功能。"; });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>转换工具</title>
+<style>
+  :root{
+    --cream:#faf9f5; --card:#ffffff; --green:#5f7a5a; --green-d:#3f5740;
+    --green-l:#e7efe4; --pink:#f3d9e2; --text:#3a4a3a; --muted:#8a938a;
+    --line:#e3e8df; --shadow:0 6px 18px rgba(95,122,90,.12);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;color:var(--text);background:var(--cream);}
+  .wrap{max-width:880px;margin:0 auto;padding:18px 16px 40px;}
+  .topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .topbar .logo{width:34px;height:34px;border-radius:12px;background:linear-gradient(135deg,var(--green),var(--green-l));display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:var(--shadow);}
+  .topbar h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.5px;}
+  .topbar .tip{margin-left:auto;font-size:11px;color:var(--muted);background:var(--green-l);padding:4px 9px;border-radius:20px;}
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .tab{flex:1 1 auto;min-width:96px;border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:11px 8px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;transition:.18s;display:flex;flex-direction:column;align-items:center;gap:5px;}
+  .tab .ic{font-size:18px;}
+  .tab.active{border-color:var(--green);background:var(--green-l);color:var(--green-d);box-shadow:var(--shadow);}
+  .panel{background:var(--card);border-radius:18px;padding:18px;box-shadow:var(--shadow);display:none;}
+  .panel.active{display:block;}
+  .panel h2{margin:0 0 4px;font-size:16px;color:var(--green-d);}
+  .panel .desc{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.6;}
+  .drop{border:2px dashed var(--line);border-radius:14px;padding:28px 22px;min-height:90px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;transition:.18s;background:#fcfcf9;margin-bottom:14px;}
+  .drop:hover,.drop.over{border-color:var(--green);color:var(--green-d);background:var(--green-l);}
+  .drop input[type=file]{position:absolute;left:-9999px;opacity:0;}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0;}
+  .row label{font-size:13px;font-weight:600;}
+  input[type=file]{display:none;}
+  select,input[type=text],input[type=number]{font:inherit;padding:7px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--text);}
+  input[type=range]{width:160px;}
+  .btn{border:none;border-radius:12px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--green),var(--green-d));color:#fff;box-shadow:var(--shadow);transition:.15s;}
+  .btn:active{transform:translateY(1px);}
+  .btn.ghost{background:#fff;color:var(--green-d);border:1.5px solid var(--green);box-shadow:none;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .log{margin-top:14px;background:#f6f8f4;border-radius:12px;padding:12px;font-size:12px;line-height:1.7;color:#4a5a4a;max-height:200px;overflow:auto;white-space:pre-wrap;font-family:"SFMono-Regular",Consolas,monospace;}
+  .log .ok{color:var(--green-d);} .log .err{color:#c0392b;}
+  .dl{margin-top:12px;display:flex;flex-wrap:wrap;gap:10px;}
+  .dl a{text-decoration:none;}
+  .pages-list{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;max-height:180px;overflow:auto;}
+  .pg{border:1.5px solid var(--line);border-radius:10px;padding:7px 10px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;background:#fff;}
+  .pg.sel{border-color:var(--green);background:var(--green-l);}
+  .pg .up,.pg .dn{font-weight:700;color:var(--green-d);padding:0 2px;}
+  .canvas-box{border-radius:12px;overflow:auto;background:#525659;padding:10px;max-height:62vh;text-align:center;}
+  .canvas-box canvas{max-width:100%;height:auto;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:crosshair;}
+  .tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;}
+  .tools .tbtn{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:7px 12px;font-size:13px;cursor:pointer;}
+  .tools .tbtn.active{border-color:var(--green);background:var(--green-l);color:var(--green-d);}
+  .swatch{width:24px;height:24px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--line);cursor:pointer;}
+  .swatch.active{box-shadow:0 0 0 2px var(--green);}
+  .pill{font-size:11px;color:var(--muted);background:var(--green-l);padding:3px 9px;border-radius:20px;}
+  .hidden{display:none!important;}
+  .offline{background:#fff7ed;border:1px solid #fed7aa;color:#9a5a1a;font-size:12px;border-radius:12px;padding:10px 12px;margin-bottom:12px;}
+  .offline summary{cursor:pointer;font-weight:600;}
+  .offline code{background:#fde9d3;padding:1px 5px;border-radius:5px;}
+  iframe.txtepub{width:100%;height:78vh;border:0;border-radius:14px;background:var(--cream);}
+  /* TXT/EPUB 内联面板控件 */
+  .seg{display:inline-flex;background:var(--green-l);border-radius:999px;padding:3px;gap:2px;}
+  .seg button{border:0;background:transparent;padding:6px 14px;border-radius:999px;font-size:13px;color:var(--text);cursor:pointer;transition:.15s;}
+  .seg button.on{background:#fff;color:var(--green-d);box-shadow:var(--shadow);font-weight:600;}
+  .lbl{font-size:13px;font-weight:600;min-width:64px;}
+  .chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
+</style>
+<script src="pdf-tool.zip.js"></script>
+</head>
+<body>
+<div id="fileWarn" style="display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a5a1a;border-radius:14px;padding:12px 14px;margin:0 0 14px;font-size:13px;line-height:1.7;">
+  ⚠️ 检测到你是<strong>直接双击</strong>打开本页（地址以 <code>file://</code> 开头）。浏览器会<strong>禁用 Web Worker</strong>，导致「PDF 压缩 / 转图片 / 转 TXT-EPUB」无法使用。<br>
+  👉 请改用：双击同目录里的 <strong>start-workbench.bat</strong>，它会用 <code>http://localhost</code> 打开，所有功能正常。
+</div>
+<script>if(location.protocol==='file:'){var w=document.getElementById('fileWarn');if(w)w.style.display='block';}</script>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo">🔧</div>
+    <h1>转换工具</h1>
+    <span class="tip">全部本地运行 · 文件不上传</span>
+    <button class="btn ghost" id="clearCache" style="margin-left:auto;padding:7px 14px;font-size:13px;">🧹 清理缓存</button>
+  </div>
+  <div id="cacheInfo" style="font-size:12px;color:#5f7a5a;margin:-6px 0 12px;display:none;"></div>
+
+  <details class="offline">
+    <summary>离线模式 / 库加载失败怎么办？</summary>
+    <p>本页用到的 pdf-lib、pdf.js 默认从网络 CDN 加载。若你的环境无法联网，可把 <code>libs/</code> 放到本页同目录，并刷新页面即可离线使用（详见仓库说明）。</p>
+  </details>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-view="merge"><span class="ic">🗂️</span>PDF 合并/拆分</button>
+    <button class="tab" data-view="reorder"><span class="ic">🔀</span>PDF 重排</button>
+    <button class="tab" data-view="compress"><span class="ic">🗜️</span>PDF 压缩</button>
+    <button class="tab" data-view="cover"><span class="ic">🖌️</span>去水印/修改</button>
+    <button class="tab" data-view="txtepub"><span class="ic">📄</span>转 TXT/EPUB</button>
+    <button class="tab" data-view="img2pdf"><span class="ic">🖼️</span>图片转 PDF</button>
+    <button class="tab" data-view="pdf2img"><span class="ic">📷</span>PDF 转图片</button>
+  </div>
+
+  <!-- 合并 / 拆分 -->
+  <section class="panel active" id="v-merge">
+    <h2>PDF 合并 / 拆分</h2>
+    <p class="desc">合并：选中多个 PDF，按顺序合成一个。拆分：单文件按「每页一份」或「自定义区间」拆开，结果打包成 zip。</p>
+    <label class="drop" id="mergeDrop">点击或拖拽选择 PDF（合并可多选，拆分单选）<input type="file" id="mergeFiles" accept="application/pdf" multiple /></label>
+    <div class="row">
+      <label><input type="radio" name="mMode" value="merge" checked /> 合并</label>
+      <label><input type="radio" name="mMode" value="splitEach" /> 拆分-每页一份</label>
+      <label><input type="radio" name="mMode" value="splitRange" /> 拆分-区间</label>
+      <input type="text" id="mRange" placeholder="区间如 1-3,5,7-9" class="hidden" style="width:180px" />
+    </div>
+    <div class="row"><button class="btn" id="mergeRun">开始处理</button><span class="pill" id="mergeInfo"></span></div>
+    <div class="log" id="mergeLog"></div>
+    <div class="dl" id="mergeDl"></div>
+  </section>
+
+  <!-- 重排 -->
+  <section class="panel" id="v-reorder">
+    <h2>PDF 重排</h2>
+    <p class="desc">上传 PDF，用 ▲▼ 调整页面顺序，导出为新 PDF。也可用「整段顺序」输入框直接写顺序（如 3,1,2,4）。</p>
+    <label class="drop" id="roDrop">点击或拖拽选择 PDF<input type="file" id="roFile" accept="application/pdf" /></label>
+    <div class="pages-list" id="roList"></div>
+    <div class="row">
+      <input type="text" id="roOrder" placeholder="整段顺序 如 3,1,2,4" style="width:200px" />
+      <button class="btn ghost" id="roApplyOrder">应用顺序</button>
+      <button class="btn" id="roRun">导出重排后 PDF</button>
+    </div>
+    <div class="log" id="roLog"></div>
+    <div class="dl" id="roDl"></div>
+  </section>
+
+  <!-- 压缩 -->
+  <section class="panel" id="v-compress">
+    <h2>PDF 压缩</h2>
+    <p class="desc">把每页重新栅格化为 JPEG 再打包，体积显著减小（适合扫描件/图片型 PDF）。代价：文字层会变成图片，不再可选中。</p>
+    <label class="drop" id="czDrop">点击或拖拽选择 PDF<input type="file" id="czFile" accept="application/pdf" /></label>
+    <div class="row">
+      <label>清晰度</label>
+      <select id="czDpi"><option value="100">100 dpi（更小）</option><option value="150" selected>150 dpi（均衡）</option><option value="200">200 dpi（更清）</option></select>
+      <label>画质</label>
+      <input type="range" id="czQ" min="0.3" max="0.95" step="0.05" value="0.7" /><span id="czQv" class="pill">0.70</span>
+    </div>
+    <div class="row"><button class="btn" id="czRun">开始压缩</button><span class="pill" id="czInfo"></span></div>
+    <div class="log" id="czLog"></div>
+    <div class="dl" id="czDl"></div>
+  </section>
+
+  <!-- 去水印 / 修改（遮盖） -->
+  <section class="panel" id="v-cover">
+    <h2>去水印 / 修改（遮盖）</h2>
+    <p class="desc">上传 PDF，翻到要改的页，用「画笔/矩形」把错别字或水印涂掉（像涂改液），再用「文字」补上正确内容。导出后原图印章等不受影响。<b>原理是覆盖，不是真的删掉底层像素</b>——对扫描件/带章文件最安全。</p>
+    <label class="drop" id="cvDrop">点击或拖拽选择 PDF<input type="file" id="cvFile" accept="application/pdf" /></label>
+    <div class="row" id="cvNav" style="display:none">
+      <button class="btn ghost" id="cvPrev">← 上一页</button>
+      <span class="pill" id="cvPageTip">第 1 / 1 页</span>
+      <button class="btn ghost" id="cvNext">下一页 →</button>
+      <span class="pill" id="cvSavedTip">本页未编辑</span>
+    </div>
+    <div class="tools" id="cvTools" style="display:none">
+      <button class="tbtn active" data-tool="pen">✏️ 画笔</button>
+      <button class="tbtn" data-tool="rect">▭ 矩形</button>
+      <button class="tbtn" data-tool="text">🔤 文字</button>
+      <span style="width:8px"></span>
+      <span class="swatch active" data-c="#ffffff" style="background:#ffffff" title="白"></span>
+      <span class="swatch" data-c="#fdf3d0" style="background:#fdf3d0" title="米黄"></span>
+      <span class="swatch" data-c="#000000" style="background:#000000" title="黑"></span>
+      <span class="swatch" data-c="#e23b3b" style="background:#e23b3b" title="红"></span>
+      <input type="number" id="cvSize" value="14" min="2" max="60" style="width:64px" title="画笔/字号大小" />
+      <button class="tbtn" id="cvUndo">↶ 撤销</button>
+      <button class="tbtn" id="cvClear">清空本页</button>
+    </div>
+    <div class="canvas-box hidden" id="cvBox"><canvas id="cvCanvas"></canvas></div>
+    <div class="row" id="cvTextRow" style="display:none">
+      <input type="text" id="cvTextInput" placeholder="要补的字，如：已" style="width:160px" />
+      <button class="btn ghost" id="cvTextPlace">放到页面上（先点画布定位）</button>
+    </div>
+    <div class="row"><button class="btn" id="cvRun" style="display:none">导出修改后的 PDF</button></div>
+    <div class="log" id="cvLog"></div>
+    <div class="dl" id="cvDl"></div>
+  </section>
+
+  <!-- 转 TXT/EPUB（内联，避免 iframe 嵌套导致下载失效） -->
+  <section class="panel" id="v-txtepub">
+    <h2>PDF 转 TXT / EPUB</h2>
+    <p class="desc">文字型 PDF 直接在本地抽取文本；图片型（扫描件）会自动识别中文（需联网加载识别引擎）。转完的 TXT/EPUB 点「下载」存到设备，再放回百度网盘就能用它的字体舒服看。</p>
+    <label class="drop" id="teDrop">点击或拖拽选择 PDF（文字型建议 ≤ 300 页）<input type="file" id="teFile" accept="application/pdf" /></label>
+    <div class="log" id="teLog" style="display:none;margin:-2px 0 10px 0;padding:0;background:transparent;border:none;color:var(--rose-d);font-size:13px;"></div>
+    <div class="row">
+      <span class="lbl">输出格式</span>
+      <span class="seg" id="teFmt">
+        <button data-v="txt">仅 TXT</button>
+        <button data-v="epub">仅 EPUB</button>
+        <button data-v="both" class="on">TXT + EPUB</button>
+      </span>
+    </div>
+    <div class="row">
+      <span class="lbl">OCR 语言</span>
+      <span class="seg" id="teLang">
+        <button data-v="chi_sim" class="on">中文</button>
+        <button data-v="chi_sim+eng">中英</button>
+        <button data-v="eng">英文</button>
+      </span>
+    </div>
+    <div class="row">
+      <label class="lbl">清晰度</label>
+      <select id="teDpi">
+        <option value="200">200 dpi（快）</option>
+        <option value="300" selected>300 dpi（推荐）</option>
+        <option value="400">400 dpi（更清晰·更慢）</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="teForce" /> 强制 OCR（忽略内嵌文字）</label>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="teSplit" checked /> EPUB 按「第X章」自动分章节</label>
+    </div>
+    <div class="row"><button class="btn" id="teRun">开始转换</button><span class="pill" id="teInfo"></span></div>
+    <div class="dl" id="teDl"></div>
+  </section>
+
+  <!-- 图片转 PDF -->
+  <section class="panel" id="v-img2pdf">
+    <h2>图片转 PDF</h2>
+    <p class="desc">选中多张图片（JPG/PNG），按选择顺序合成一个 PDF，每图一页，保持原图尺寸。</p>
+    <label class="drop" id="i2pDrop">点击或拖拽选择图片（可多选）<input type="file" id="i2pFiles" accept="image/*" multiple /></label>
+    <div class="row"><button class="btn" id="i2pRun">合成 PDF</button><span class="pill" id="i2pInfo"></span></div>
+    <div class="log" id="i2pLog"></div>
+    <div class="dl" id="i2pDl"></div>
+  </section>
+
+  <!-- PDF 转图片 -->
+  <section class="panel" id="v-pdf2img">
+    <h2>PDF 转图片</h2>
+    <p class="desc">把 PDF 每页渲染成 PNG/JPG 图片，全部打包成 zip 下载。适合把文档发到聊天软件或做长图。</p>
+    <label class="drop" id="p2iDrop">点击或拖拽选择 PDF<input type="file" id="p2iFile" accept="application/pdf" /></label>
+    <div class="row">
+      <label>格式</label>
+      <select id="p2iFmt"><option value="image/png">PNG</option><option value="image/jpeg">JPG</option></select>
+      <label>清晰度</label>
+      <select id="p2iDpi"><option value="1">1x（快）</option><option value="1.5" selected>1.5x</option><option value="2">2x（清）</option></select>
+    </div>
+    <div class="row"><button class="btn" id="p2iRun">开始转换</button><span class="pill" id="p2iInfo"></span></div>
+    <div class="log" id="p2iLog"></div>
+    <div class="dl" id="p2iDl"></div>
+  </section>
+</div>
+
+<script>
+/* ============ 库加载（本地 libs/ 优先，CDN 回退） ============ */
+/* 说明：已把 pdf.min.js / pdf.worker.min.js / pdf-lib.min.js 放进同目录 libs/，
+   国内网络访问 jsdelivr 等 CDN 经常失败，本地优先可保证离线也能用。 */
+var CDN = {
+  pdflib: ['https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js','https://cdn.bootcdn.net/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'],
+  pdfjs: ['https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js'],
+  pdfWorker: ['https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js','https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js'],
+  tess: ['libs/tesseract/tesseract.min.js','https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js','https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js','https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js','https://cdn.bootcdn.net/ajax/libs/tesseract.js/5.1.0/dist/tesseract.min.js']
+};
+var LOCAL = { pdflib:'libs/pdf-lib.min.js', pdfjs:'libs/pdf.min.js', pdfWorker:'libs/pdf.worker.min.js' };
+var _libs = { PDFLib:null, pdfjsLib:null, Tesseract:null };
+
+function loadScript(urls){
+  return new Promise(function(res,rej){
+    var i=0;
+    (function next(){
+      if(i>=urls.length){ rej(new Error('all cdn failed')); return; }
+      var s=document.createElement('script'); s.src=urls[i++];
+      s.onload=function(){ res(); }; s.onerror=function(){ next(); };
+      document.head.appendChild(s);
+    })();
+  });
+}
+function loadPdfLib(){
+  if(_libs.PDFLib) return Promise.resolve(_libs.PDFLib);
+  var urls = [LOCAL.pdflib].concat(CDN.pdflib);   // 本地优先
+  return loadScript(urls).then(function(){ _libs.PDFLib = window.PDFLib; return _libs.PDFLib; });
+}
+/* 关键修复：把 worker 源码 fetch 成 Blob URL 再交给 pdf.js。
+   原因：CloudStudio/部分静态服务器对 .js 的 MIME 下发不正确，经典 Worker 会因 MIME 不符直接创建失败，
+   导致所有依赖 pdf.js 的功能（转图片/压缩/转TXT-EPUB）崩溃；合并只用 pdf-lib 无 worker，所以照常能用。
+   Blob URL 绕开 MIME/CORS 限制；本地优先，失败自动回退 CDN。 */
+function ensureWorker(){
+  if(_libs.pdfWorkerUrl){ _libs.pdfjsLib.GlobalWorkerOptions.workerSrc=_libs.pdfWorkerUrl; return Promise.resolve(); }
+  var srcs=[LOCAL.pdfWorker].concat(CDN.pdfWorker);
+  function tryFetch(i){
+    if(i>=srcs.length) return Promise.reject(new Error('worker 加载失败'));
+    return fetch(srcs[i]).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.text(); })
+      .then(function(t){
+        _libs.pdfWorkerUrl=URL.createObjectURL(new Blob([t],{type:'application/javascript'}));
+        _libs.pdfjsLib.GlobalWorkerOptions.workerSrc=_libs.pdfWorkerUrl;
+      }).catch(function(){ return tryFetch(i+1); });
+  }
+  return tryFetch(0);
+}
+function loadPdfJs(){
+  if(_libs.pdfjsLib) return Promise.resolve(_libs.pdfjsLib);
+  var urls=[LOCAL.pdfjs].concat(CDN.pdfjs);   // 本地优先
+  return loadScript(urls).then(function(){
+    _libs.pdfjsLib=window.pdfjsLib;
+    return ensureWorker().then(function(){ return _libs.pdfjsLib; });
+  });
+}
+/* worker 万一还是失败，自动退回 CDN worker 重试一次 */
+function getPdfDocument(data){
+  return _libs.pdfjsLib.getDocument(data).promise.catch(function(err){
+    if(!window.__pdfWkFb && CDN.pdfWorker[0]){
+      window.__pdfWkFb=true; _libs.pdfWorkerUrl=null;
+      return ensureWorker().then(function(){ return _libs.pdfjsLib.getDocument(data).promise; });
+    }
+    throw err;
+  });
+}
+
+/* ============ 通用工具 ============ */
+function $(id){ return document.getElementById(id); }
+function log(box,msg,type){
+  var d=document.createElement('div');
+  if(type) d.className=type;
+  d.textContent=msg; box.appendChild(d); box.scrollTop=box.scrollHeight;
+}
+function readBuffer(file){ return file.arrayBuffer(); }
+function downloadBytes(bytes,name){
+  var b=new Blob([bytes],{type:'application/pdf'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name;
+  document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},3000);
+}
+function setInputFiles(inputEl, files){
+  // 直接 input.files = files 在多数浏览器会被忽略；用 DataTransfer 是可靠做法
+  try{
+    var dt=new DataTransfer();
+    for(var i=0;i<files.length;i++) dt.items.add(files[i]);
+    inputEl.files=dt.files;
+  }catch(e){
+    try{ inputEl.files=files; }catch(_){}
+  }
+}
+function enableDrop(dropEl, inputEl){
+  // 所有 .drop 都是 <label>，点击已天然关联到内部 file input，不用 JS 再触发一次
+  dropEl.addEventListener('dragover', function(e){ e.preventDefault(); dropEl.classList.add('over'); });
+  dropEl.addEventListener('dragleave', function(){ dropEl.classList.remove('over'); });
+  dropEl.addEventListener('drop', function(e){ e.preventDefault(); dropEl.classList.remove('over');
+    if(e.dataTransfer.files && e.dataTransfer.files.length){ setInputFiles(inputEl, e.dataTransfer.files); inputEl.dispatchEvent(new Event('change')); } });
+}
+function safeName(fname, ext){ var base=(fname||'file').replace(/\.[^.]+$/,'') ; return base+ext; }
+
+/* 最小 store-zip（不压缩，结构合法，可用 Python zipfile 校验） */
+function makeZip(files){ // files: [{name, bytes:Uint8Array}]
+  function crc32(buf){ var c,t=[]; for(var n=0;n<256;n++){c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;} var crc=0xFFFFFFFF; for(var i=0;i<buf.length;i++)crc=t[(crc^buf[i])&0xFF]^(crc>>>8); return (crc^0xFFFFFFFF)>>>0; }
+  function str(s){ return new TextEncoder().encode(s); }
+  var chunks=[], central=[], off=0;
+  for(var i=0;i<files.length;i++){
+    var nameB=str(files[i].name), data=files[i].bytes, crc=crc32(data), size=data.length;
+    var lh=new Uint8Array(30+nameB.length); var dv=new DataView(lh.buffer);
+    dv.setUint32(0,0x04034b50,true); dv.setUint16(4,20,true); dv.setUint16(6,0,true); dv.setUint16(8,0,true);
+    dv.setUint16(10,0,true); dv.setUint16(12,0,true); dv.setUint32(14,crc,true); dv.setUint32(18,size,true); dv.setUint32(22,size,true);
+    dv.setUint16(26,nameB.length,true); dv.setUint16(28,0,true);
+    lh.set(nameB,30);
+    chunks.push(lh); chunks.push(data);
+    var ch=new Uint8Array(46+nameB.length); var cd=new DataView(ch.buffer);
+    cd.setUint32(0,0x02014b50,true); cd.setUint16(4,20,true); cd.setUint16(6,20,true); cd.setUint16(8,0,true); cd.setUint16(10,0,true); cd.setUint16(12,0,true);
+    cd.setUint32(14,crc,true); cd.setUint32(18,size,true); cd.setUint32(22,size,true); cd.setUint16(26,nameB.length,true); cd.setUint16(28,0,true);
+    cd.setUint16(30,0,true); cd.setUint16(32,0,true); cd.setUint16(34,0,true); cd.setUint16(36,0,true); cd.setUint32(38,0,true); cd.setUint32(42,off,true);
+    ch.set(nameB,46); central.push(ch);
+    off += lh.length + size;
+  }
+  var cenLen=central.reduce(function(a,c){return a+c.length;},0);
+  var end=new Uint8Array(22); var ev=new DataView(end.buffer);
+  ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true);
+  ev.setUint32(12,cenLen,true); ev.setUint32(16,off,true);
+  var all=chunks.concat(central,[end]); var total=all.reduce(function(a,c){return a+c.length;},0);
+  var out=new Uint8Array(total), p=0; all.forEach(function(c){out.set(c,p);p+=c.length;});
+  return out;
+}
+
+/* ============ Tab 切换 ============ */
+(function(){
+  var tabs=$('tabs').querySelectorAll('.tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      tabs.forEach(function(x){x.classList.remove('active');});
+      t.classList.add('active');
+      var v=t.getAttribute('data-view');
+      document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+      $('v-'+v).classList.add('active');
+    });
+  });
+})();
+
+/* ============ 1. 合并 / 拆分 ============ */
+enableDrop($('mergeDrop'), $('mergeFiles'));
+document.querySelectorAll('input[name=mMode]').forEach(function(r){
+  r.addEventListener('change', function(){
+    var v=document.querySelector('input[name=mMode]:checked').value;
+    $('mRange').classList.toggle('hidden', v!=='splitRange');
+  });
+});
+$('mergeFiles').addEventListener('change', function(){
+  var n=this.files.length; $('mergeInfo').textContent = n? ('已选 '+n+' 个文件') : '';
+});
+$('mergeRun').addEventListener('click', function(){
+  var mode=document.querySelector('input[name=mMode]:checked').value;
+  var box=$('mergeLog'); box.innerHTML='';
+  if(mode==='merge'){
+    var files=Array.from($('mergeFiles').files||[]);
+    if(!files.length){ log(box,'请先选择 PDF','err'); return; }
+    var btn=this; btn.disabled=true;
+    log(box,'加载 pdf-lib ...');
+    loadPdfLib().then(function(PDFLib){
+      log(box,'读取 '+files.length+' 个文件 ...');
+      return Promise.all(files.map(readBuffer)).then(function(buffers){
+        return PDFLib.PDFDocument.create().then(function(merged){
+          log(box,'合并中 ...');
+          var chain=Promise.resolve();
+          buffers.forEach(function(buf){
+            chain=chain.then(function(){
+              return PDFLib.PDFDocument.load(buf).then(function(doc){
+                return merged.copyPages(doc, doc.getPageIndices()).then(function(cps){ cps.forEach(function(p){ merged.addPage(p); }); });
+              });
+            });
+          });
+          return chain.then(function(){ return merged.save(); });
+        });
+      });
+    }).then(function(bytes){ downloadBytes(bytes,'merged.pdf'); log(box,'✅ 已合并，下载 merged.pdf','ok'); })
+      .catch(function(e){ log(box,'❌ '+e.message,'err'); })
+      .finally(function(){ btn.disabled=false; });
+  } else {
+    runSplit(mode);
+  }
+});
+function runSplit(mode){
+  var box=$('mergeLog'); var f=$('mergeFiles').files && $('mergeFiles').files[0];
+  if(!f){ log(box,'请先选择单个 PDF','err'); return; }
+  var btn=$('mergeRun'); btn.disabled=true;
+  loadPdfLib().then(function(PDFLib){
+    log(box,'读取 PDF ...');
+    return readBuffer(f).then(function(buf){ return PDFLib.PDFDocument.load(buf); }).then(function(doc){
+      var n=doc.getPageCount(); log(box,'共 '+n+' 页');
+      var groups=[];
+      if(mode==='splitEach'){ for(var i=0;i<n;i++) groups.push({name:'page_'+(i+1)+'.pdf', pages:[i]}); }
+      else if(mode==='splitRange'){
+        var raw=$('mRange').value.trim(); if(!raw){ log(box,'请输入区间，如 1-3,5','err'); throw new Error('no range'); }
+        var parts=raw.split(',');
+        parts.forEach(function(p,pi){
+          p=p.trim(); if(!p) return;
+          if(p.indexOf('-')>=0){ var ab=p.split('-'); var a=parseInt(ab[0],10)-1, b=parseInt(ab[1],10)-1; if(isNaN(a)||isNaN(b)) return; for(var k=a;k<=b;k++) groups.push({name:'range_'+(pi+1)+'_p'+(k+1)+'.pdf', pages:[k]}); }
+          else { var idx=parseInt(p,10)-1; if(!isNaN(idx)) groups.push({name:'page_'+(idx+1)+'.pdf', pages:[idx]}); }
+        });
+        if(!groups.length) throw new Error('bad range');
+      }
+      log(box,'拆分 '+groups.length+' 份 ...');
+      return Promise.all(groups.map(function(g){
+        return PDFLib.PDFDocument.create().then(function(nd){
+          return nd.copyPages(doc, g.pages).then(function(cps){ cps.forEach(function(p){ nd.addPage(p); }); return nd.save(); });
+        }).then(function(bytes){ return {name:g.name, bytes:bytes}; });
+      }));
+    }).then(function(files){
+      var zip=makeZip(files); downloadBytes(zip, safeName(f.name,'.split.zip'));
+      log(box,'✅ 已打包 '+files.length+' 个 PDF，下载 zip','ok');
+    });
+  }).catch(function(e){ if(e) log(box,'❌ '+e.message,'err'); }).finally(function(){ btn.disabled=false; });
+}
+
+/* ============ 2. 重排 ============ */
+enableDrop($('roDrop'), $('roFile'));
+var roOrder=[], roDoc=null;
+$('roFile').addEventListener('change', function(){
+  var f=this.files[0]; if(!f) return; var box=$('roLog'); box.innerHTML='';
+  $('roList').innerHTML=''; roOrder=[];
+  loadPdfLib().then(function(PDFLib){
+    log(box,'读取 PDF ...'); return readBuffer(f).then(function(buf){ return PDFLib.PDFDocument.load(buf); }).then(function(doc){
+      roDoc=doc; var n=doc.getPageCount(); log(box,'共 '+n+' 页');
+      for(var i=0;i<n;i++){ roOrder.push(i); }
+      renderRoList();
+    });
+  }).catch(function(e){ log(box,'❌ '+e.message,'err'); });
+});
+function renderRoList(){
+  var list=$('roList'); list.innerHTML='';
+  roOrder.forEach(function(idx,pos){
+    var el=document.createElement('div'); el.className='pg';
+    el.innerHTML='<span>第 '+(idx+1)+' 页</span><span class="up">▲</span><span class="dn">▼</span>';
+    el.querySelector('.up').onclick=function(e){ e.stopPropagation(); if(pos>0){ var t=roOrder[pos]; roOrder[pos]=roOrder[pos-1]; roOrder[pos-1]=t; renderRoList(); } };
+    el.querySelector('.dn').onclick=function(e){ e.stopPropagation(); if(pos<roOrder.length-1){ var t=roOrder[pos]; roOrder[pos]=roOrder[pos+1]; roOrder[pos+1]=t; renderRoList(); } };
+    list.appendChild(el);
+  });
+}
+$('roApplyOrder').addEventListener('click', function(){
+  var v=$('roOrder').value.trim(); if(!v||!roDoc) return;
+  var nums=v.split(',').map(function(s){return parseInt(s,10)-1;}).filter(function(i){return i>=0&&i<roDoc.getPageCount();});
+  if(nums.length){ roOrder=nums; renderRoList(); log($('roLog'),'已应用顺序'); }
+});
+$('roRun').addEventListener('click', function(){
+  if(!roDoc) return; var box=$('roLog'); var btn=this; btn.disabled=true;
+  loadPdfLib().then(function(PDFLib){
+    log(box,'重建中 ...');
+    return PDFLib.PDFDocument.create().then(function(nd){
+      return nd.copyPages(roDoc, roOrder).then(function(cps){ cps.forEach(function(p){ nd.addPage(p); }); return nd.save(); });
+    });
+  }).then(function(bytes){ downloadBytes(bytes,'reordered.pdf'); log(box,'✅ 已导出 reordered.pdf','ok'); })
+  .catch(function(e){ log(box,'❌ '+e.message,'err'); }).finally(function(){ btn.disabled=false; });
+});
+
+/* ============ 3. 压缩 ============ */
+enableDrop($('czDrop'), $('czFile'));
+$('czFile').addEventListener('change', function(){ var n=this.files.length; $('czInfo').textContent = n? ('已选 '+n+' 个文件，点「开始压缩」') : ''; });
+$('czQ').addEventListener('input', function(){ $('czQv').textContent=parseFloat(this.value).toFixed(2); });
+$('czRun').addEventListener('click', function(){
+  var f=$('czFile').files[0]; if(!f){ log($('czLog'),'请先选择 PDF','err'); return; }
+  var btn=this; btn.disabled=true; var box=$('czLog'); box.innerHTML='';
+  var dpi=parseInt($('czDpi').value,10), q=parseFloat($('czQ').value);
+  Promise.all([loadPdfLib(), loadPdfJs()]).then(function(arr){
+    var PDFLib=arr[0], pdfjsLib=arr[1];
+    log(box,'读取 PDF ...');
+    return readBuffer(f).then(function(buf){
+      return getPdfDocument({data:buf.slice(0)});
+    }).then(function(pdf){
+      return PDFLib.PDFDocument.create().then(function(nd){
+        var scale=dpi/72;
+        var chain=Promise.resolve();
+        for(var p=1;p<=pdf.numPages;p++){
+          (function(p){
+            chain=chain.then(function(){
+              log(box,'处理第 '+p+' / '+pdf.numPages+' 页 ...');
+              return pdf.getPage(p).then(function(page){
+                var vp=page.getViewport({scale:scale});
+                var c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+                return page.render({canvasContext:c.getContext('2d'), viewport:vp}).promise.then(function(){
+                  return new Promise(function(res){ c.toBlob(function(b){ res(b); },'image/jpeg',q); });
+                }).then(function(blob){ return blob.arrayBuffer(); }).then(function(jbuf){
+                  return PDFLib.PDFDocument.create().then(function(tmp){
+                    return tmp.embedJpg(jbuf).then(function(img){
+                      var pg=tmp.addPage([vp.width/scale, vp.height/scale]);
+                      pg.drawImage(img,{x:0,y:0,width:vp.width/scale,height:vp.height/scale});
+                      return tmp.save();
+                    });
+                  });
+                }).then(function(pdfBytes){
+                  return PDFLib.PDFDocument.load(pdfBytes).then(function(sp){ return nd.copyPages(sp,[0]); }).then(function(cps){ nd.addPage(cps[0]); });
+                });
+              });
+            });
+          })(p);
+        }
+        return chain.then(function(){ return nd.save(); });
+      });
+    });
+  }).then(function(bytes){
+    downloadBytes(bytes, safeName(f.name,'.compressed.pdf'));
+    log(box,'✅ 已压缩，下载 '+safeName(f.name,'.compressed.pdf'),'ok');
+  }).catch(function(e){ log(box,'❌ '+e.message,'err'); }).finally(function(){ btn.disabled=false; });
+});
+
+/* ============ 4. 去水印 / 修改（遮盖） ============ */
+enableDrop($('cvDrop'), $('cvFile'));
+var cvPdf=null, cvPdfjs=null, cvPageCount=0, cvCur=0, cvScale=1.5;
+var cvOps={}; // pageIndex -> [{type:'rect'|'pen'|'text', ...}]
+var cvColor='#ffffff', cvTool='pen', cvDrawing=false, cvLast=null, cvPendingText=null;
+var cvCanvas=$('cvCanvas'); var cvPdfSrcBuf=null;
+$('cvFile').addEventListener('change', function(){
+  var f=this.files[0]; if(!f) return; var box=$('cvLog'); box.innerHTML='';
+  cvOps={}; cvCur=0;
+  Promise.all([loadPdfLib(), loadPdfJs()]).then(function(arr){
+    var PDFLib=arr[0], pdfjsLib=arr[1];
+    log(box,'读取 PDF ...');
+    return readBuffer(f).then(function(buf){ cvPdfSrcBuf=buf; return getPdfDocument({data:buf.slice(0)}); }).then(function(pdf){
+      cvPdf=pdf; cvPageCount=pdf.numPages;
+      $('cvNav').style.display='flex'; $('cvTools').style.display='flex'; $('cvBox').classList.remove('hidden'); $('cvRun').style.display='inline-block';
+      log(box,'共 '+cvPageCount+' 页，可开始涂改');
+      renderCvPage(0);
+    });
+  }).catch(function(e){ log(box,'❌ '+e.message,'err'); });
+});
+function renderCvPage(idx){
+  cvCur=idx; $('cvPageTip').textContent='第 '+(idx+1)+' / '+cvPageCount+' 页';
+  $('cvSavedTip').textContent = cvOps[idx] && cvOps[idx].length ? ('本页已编辑 '+cvOps[idx].length+' 笔') : '本页未编辑';
+  cvPdf.getPage(idx+1).then(function(page){
+    var vp=page.getViewport({scale:cvScale});
+    cvCanvas.width=vp.width; cvCanvas.height=vp.height;
+    return page.render({canvasContext:cvCanvas.getContext('2d'), viewport:vp}).promise;
+  }).then(function(){
+    var ops=cvOps[idx]||[];
+    var ctx=cvCanvas.getContext('2d');
+    ops.forEach(function(o){ drawOp(ctx,o); });
+  });
+}
+function drawOp(ctx,o){
+  ctx.save();
+  if(o.type==='rect'){ ctx.fillStyle=o.color; ctx.fillRect(o.x,o.y,o.w,o.h); }
+  else if(o.type==='pen'){ ctx.strokeStyle=o.color; ctx.lineWidth=o.size; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath(); o.pts.forEach(function(p,i){ if(i===0)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); }); ctx.stroke(); }
+  else if(o.type==='text'){ ctx.fillStyle=o.color; ctx.font='bold '+o.size+'px sans-serif'; ctx.textBaseline='top'; ctx.fillText(o.text,o.x,o.y); }
+  ctx.restore();
+}
+document.querySelectorAll('#cvTools .tbtn[data-tool]').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('#cvTools .tbtn[data-tool]').forEach(function(x){x.classList.remove('active');});
+    b.classList.add('active'); cvTool=b.getAttribute('data-tool');
+    $('cvTextRow').style.display = cvTool==='text' ? 'flex' : 'none';
+  });
+});
+document.querySelectorAll('#cvTools .swatch').forEach(function(s){
+  s.addEventListener('click', function(){
+    document.querySelectorAll('#cvTools .swatch').forEach(function(x){x.classList.remove('active');});
+    s.classList.add('active'); cvColor=s.getAttribute('data-c');
+  });
+});
+$('cvPrev').addEventListener('click', function(){ if(cvCur>0) renderCvPage(cvCur-1); });
+$('cvNext').addEventListener('click', function(){ if(cvCur<cvPageCount-1) renderCvPage(cvCur+1); });
+$('cvUndo').addEventListener('click', function(){ var ops=cvOps[cvCur]; if(ops&&ops.length){ ops.pop(); renderCvPage(cvCur); } });
+$('cvClear').addEventListener('click', function(){ cvOps[cvCur]=[]; renderCvPage(cvCur); });
+$('cvTextPlace').addEventListener('click', function(){ if(cvTool!=='text') return; var t=$('cvTextInput').value; if(!t) return; cvPendingText=t; log($('cvLog'),'请在页面上点击要放字的位置'); });
+cvCanvas.addEventListener('mousedown', cvDown); cvCanvas.addEventListener('mousemove', cvMove); window.addEventListener('mouseup', cvUp);
+cvCanvas.addEventListener('touchstart', function(e){ e.preventDefault(); var t=e.touches[0]; cvDown({clientX:t.clientX,clientY:t.clientY}); },{passive:false});
+cvCanvas.addEventListener('touchmove', function(e){ e.preventDefault(); var t=e.touches[0]; cvMove({clientX:t.clientX,clientY:t.clientY}); },{passive:false});
+cvCanvas.addEventListener('touchend', function(e){ e.preventDefault(); cvUp(); },{passive:false});
+function cvPos(e){ var r=cvCanvas.getBoundingClientRect(); var sx=cvCanvas.width/r.width, sy=cvCanvas.height/r.height; return { x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy }; }
+function cvDown(e){
+  if(cvPendingText){ var p=cvPos(e); (cvOps[cvCur]=cvOps[cvCur]||[]).push({type:'text',text:cvPendingText,x:p.x,y:p.y,size:parseInt($('cvSize').value,10),color:cvColor}); cvPendingText=null; renderCvPage(cvCur); return; }
+  cvDrawing=true; var p=cvPos(e);
+  if(cvTool==='rect'){ cvLast={type:'rect',color:cvColor,x:p.x,y:p.y,w:0,h:0}; }
+  else if(cvTool==='pen'){ cvLast={type:'pen',color:cvColor,size:parseInt($('cvSize').value,10),pts:[p]}; }
+}
+function cvMove(e){ if(!cvDrawing||!cvLast) return; var p=cvPos(e);
+  if(cvLast.type==='rect'){ cvLast.w=p.x-cvLast.x; cvLast.h=p.y-cvLast.y; renderCvPage(cvCur); drawOp(cvCanvas.getContext('2d'),cvLast); }
+  else if(cvLast.type==='pen'){ cvLast.pts.push(p); var ctx=cvCanvas.getContext('2d'); ctx.strokeStyle=cvLast.color; ctx.lineWidth=cvLast.size; ctx.lineCap='round'; ctx.beginPath(); var a=cvLast.pts[cvLast.pts.length-2], b=cvLast.pts[cvLast.pts.length-1]; ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+}
+function cvUp(){ if(cvDrawing&&cvLast){ (cvOps[cvCur]=cvOps[cvCur]||[]).push(cvLast); cvLast=null; cvDrawing=false; renderCvPage(cvCur); } }
+$('cvRun').addEventListener('click', function(){
+  if(!cvPdf) return; var box=$('cvLog'); var btn=this; btn.disabled=true;
+  loadPdfLib().then(function(PDFLib){
+    log(box,'读取原 PDF ...');
+    return PDFLib.PDFDocument.load(cvPdfSrcBuf).then(function(src){
+      log(box,'重建中 ...');
+      return PDFLib.PDFDocument.create().then(function(nd){
+        var needCjk=false;
+        for(var zi=0;zi<cvPageCount;zi++){ (cvOps[zi]||[]).forEach(function(o){ if(o.type==='text') needCjk=true; }); }
+        var helvP=nd.embedFont(PDFLib.StandardFonts.Helvetica);
+        var cjkP=Promise.resolve(null);
+        if(needCjk){
+          cjkP=fetch('fonts/fangsong.ttf').then(function(r){ if(!r.ok) throw new Error('no font'); return r.arrayBuffer(); })
+            .then(function(b){ return nd.embedFont(b); }).catch(function(){ return null; });
+        }
+        return Promise.all([helvP, cjkP]).then(function(arr){
+          var font=arr[0], cjk=arr[1];
+          if(needCjk && !cjk) log(box,'⚠️ 中文补字字体加载失败（可能未联网或字体缺失），本次文字仅支持英文','err');
+          var chain=Promise.resolve();
+          for(var i=0;i<cvPageCount;i++){
+            (function(i){
+              chain=chain.then(function(){
+                return nd.copyPages(src,[i]).then(function(cps){
+                  var pg=cps[0];
+                  var vp=pg.getSize(); var PW=vp.width, PH=vp.height;
+                  (cvOps[i]||[]).forEach(function(o){
+                    if(o.type==='rect'){
+                      var x=Math.min(o.x,o.x+o.w)/cvScale, y=PH-Math.max(o.y,o.y+o.h)/cvScale;
+                      var w=Math.abs(o.w)/cvScale, h=Math.abs(o.h)/cvScale;
+                      pg.drawRectangle({x:x,y:y,width:w,height:h,color:hexRgb(o.color),opacity:1,borderWidth:0});
+                    } else if(o.type==='pen'){
+                      var sizePt=o.size/cvScale;
+                      for(var k=1;k<o.pts.length;k++){
+                        var a=o.pts[k-1], b=o.pts[k];
+                        pg.drawRectangle({x:Math.min(a.x,b.x)/cvScale, y:PH-Math.max(a.y,b.y)/cvScale, width:Math.abs(b.x-a.x)/cvScale+sizePt, height:Math.abs(b.y-a.y)/cvScale+sizePt, color:hexRgb(o.color), opacity:1, borderWidth:0});
+                      }
+                    } else if(o.type==='text'){
+                      var x=o.x/cvScale, y=PH-(o.y/cvScale)-(o.size/cvScale);
+                      pg.drawText(o.text,{x:x,y:y,size:o.size/cvScale,color:hexRgb(o.color),font: cjk?cjk:font});
+                    }
+                  });
+                  nd.addPage(pg);
+                });
+              });
+            })(i);
+          }
+          return chain.then(function(){ return nd.save(); });
+        });
+      });
+    });
+  }).then(function(bytes){ downloadBytes(bytes,'edited.pdf'); log(box,'✅ 已导出 edited.pdf（原印章等未改动）','ok'); })
+  .catch(function(e){ log(box,'❌ '+e.message,'err'); }).finally(function(){ btn.disabled=false; });
+});
+function hexRgb(hex){ hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(function(c){return c+c;}).join(''); var n=parseInt(hex,16); return window.PDFLib.rgb(((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255); }
+
+/* ============ 5. 图片转 PDF ============ */
+enableDrop($('i2pDrop'), $('i2pFiles'));
+$('i2pFiles').addEventListener('change', function(){ $('i2pInfo').textContent=this.files.length?('已选 '+this.files.length+' 张'):''; });
+$('i2pRun').addEventListener('click', function(){
+  var files=Array.from($('i2pFiles').files||[]);
+  if(!files.length){ log($('i2pLog'),'请先选择图片','err'); return; }
+  var btn=this; btn.disabled=true; var box=$('i2pLog'); box.innerHTML='';
+  loadPdfLib().then(function(PDFLib){
+    return PDFLib.PDFDocument.create().then(function(doc){
+      var chain=Promise.resolve();
+      files.forEach(function(f){
+        chain=chain.then(function(){
+          log(box,'处理 '+f.name+' ...');
+          return f.arrayBuffer().then(function(buf){
+            var isPng=(f.type.indexOf('png')>=0)||/\.png$/i.test(f.name);
+            return (isPng ? doc.embedPng(buf) : doc.embedJpg(buf)).then(function(im){
+              var w=im.width, h=im.height;
+              var pg=doc.addPage([w,h]); pg.drawImage(im,{x:0,y:0,width:w,height:h});
+            });
+          });
+        });
+      });
+      return chain.then(function(){ return doc.save(); });
+    });
+  }).then(function(bytes){ downloadBytes(bytes,'images.pdf'); log(box,'✅ 已合成 images.pdf','ok'); })
+  .catch(function(e){ log(box,'❌ '+e.message,'err'); }).finally(function(){ btn.disabled=false; });
+});
+
+/* ============ 6. PDF 转图片 ============ */
+enableDrop($('p2iDrop'), $('p2iFile'));
+$('p2iFile').addEventListener('change', function(){ var n=this.files.length; $('p2iInfo').textContent = n? ('已选 '+n+' 个文件，点「开始转换」') : ''; });
+$('p2iRun').addEventListener('click', function(){
+  var f=$('p2iFile').files[0]; if(!f){ log($('p2iLog'),'请先选择 PDF','err'); return; }
+  var btn=this; btn.disabled=true; var box=$('p2iLog'); box.innerHTML='';
+  var fmt=$('p2iFmt').value, dpiScale=parseFloat($('p2iDpi').value);
+  loadPdfJs().then(function(pdfjsLib){
+    log(box,'读取 PDF ...');
+    return readBuffer(f).then(function(buf){ return getPdfDocument({data:buf.slice(0)}); }).then(function(pdf){
+      var files=[]; var chain=Promise.resolve();
+      for(var p=1;p<=pdf.numPages;p++){
+        (function(p){
+          chain=chain.then(function(){
+            log(box,'渲染第 '+p+' / '+pdf.numPages+' 页 ...');
+            return pdf.getPage(p).then(function(page){
+              var vp=page.getViewport({scale:dpiScale});
+              var c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+              return page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise.then(function(){
+                return new Promise(function(res){ c.toBlob(function(b){ res(b); }, fmt, 0.95); });
+              }).then(function(blob){ return blob.arrayBuffer(); }).then(function(buf){ files.push({name:'page_'+p+'.'+(fmt==='image/png'?'png':'jpg'), bytes:new Uint8Array(buf)}); });
+            });
+          });
+        })(p);
+      }
+      return chain.then(function(){ return files; });
+    });
+  }).then(function(files){
+    var zip=makeZip(files); downloadBytes(zip, safeName(f.name,'.images.zip'));
+    log(box,'✅ 已导出 '+files.length+' 张图，下载 zip','ok');
+  }).catch(function(e){ log(box,'❌ '+e.message,'err'); }).finally(function(){ btn.disabled=false; });
+});
+
+/* ============ TXT / EPUB 转换（内联，下载走本页 downloadBytes） ============ */
+(function(){
+  var teDrop=$('teDrop'), teFile=$('teFile'), teRun=$('teRun'), teLog=$('teLog'), teDl=$('teDl');
+  enableDrop(teDrop, teFile);
+  teFile.addEventListener('change', function(){ var n=this.files.length; teLog.style.display='block'; teLog.textContent = n? ('已选 '+n+' 个文件：'+this.files[0].name+'，点「开始转换」') : ''; });
+  var teFmt='both', teLang='chi_sim', teReady=false, tessReady=false, TESS_OPTS=null;
+  function seg(id,cb){ var b=$(id); b.addEventListener('click',function(e){ var x=e.target.closest('button'); if(!x)return; b.querySelectorAll('button').forEach(function(y){y.classList.remove('on');}); x.classList.add('on'); cb(x.getAttribute('data-v')); }); }
+  seg('teFmt',function(v){teFmt=v;});
+  seg('teLang',function(v){teLang=v;});
+  loadPdfJs().then(function(){ teReady=true; }).catch(function(){ /* 需要时再提示 */ });
+
+  function baseNameOf(f){ return (f&&f.name?f.name:'document').replace(/\.pdf$/i,''); }
+  function buildText(tc){
+    var items=tc.items.filter(function(it){return typeof it.str==='string'&&it.str.length;});
+    if(!items.length) return '';
+    items.sort(function(a,b){ var ya=a.transform[5],yb=b.transform[5]; if(Math.abs(ya-yb)>2) return yb-ya; return a.transform[4]-b.transform[4]; });
+    var out='',line='',lineY=null;
+    items.forEach(function(it){
+      if(lineY===null) lineY=it.transform[5];
+      if(Math.abs(it.transform[5]-lineY)>2){ out+=line.replace(/\s+$/,'')+'\n'; line=''; lineY=it.transform[5]; }
+      line+=it.str;
+    });
+    if(line) out+=line.replace(/\s+$/,'')+'\n';
+    return out;
+  }
+  function splitChapters(text){
+    if(!$('teSplit').checked) return [{title:'正文',lines:text.split('\n')}];
+    var re=/^\s*(第\s*[零一二三四五六七八九十百千0-9]+\s*章)|^\s*Chapter\s+\d+/i;
+    var lines=text.split('\n'),chaps=[],cur=null;
+    lines.forEach(function(ln){
+      if(re.test(ln)){ if(cur) chaps.push(cur); cur={title:(ln.trim()||('第'+(chaps.length+1)+'节')),lines:[]}; }
+      else { if(!cur) cur={title:'正文',lines:[]}; cur.lines.push(ln); }
+    });
+    if(cur) chaps.push(cur);
+    if(!chaps.length) chaps.push({title:'正文',lines:lines});
+    return chaps;
+  }
+
+  function textLooksGarbage(t){
+    if(!t || !t.length) return false;
+    var ok=0,total=0;
+    for(var i=0;i<t.length;i++){ var c=t.charCodeAt(i); total++;
+      if((c>=0x4E00&&c<=0x9FFF)||(c>=0x3400&&c<=0x4DBF)||(c>=0x3007&&c<=0x303F)||
+         (c>=65&&c<=90)||(c>=97&&c<=122)||(c>=48&&c<=57)||
+         (c>=0x3000&&c<=0x303F)||(c>=0xFF00&&c<=0xFFEF)||
+         c===10||c===13||c===32||c===9) ok++;
+    }
+    return (ok/total) < 0.6;
+  }
+  teRun.addEventListener('click', function(){
+    var f=teFile.files[0];
+    if(!f){ log(teLog,'请先选择 PDF 文件','err'); return; }
+    if(!teReady){ log(teLog,'PDF 解析引擎正在加载，请稍候再点一次…','err'); loadPdfJs().then(function(){teReady=true;teRun.click();}); return; }
+    var btn=this; btn.disabled=true; teDl.innerHTML=''; teLog.style.display='block'; teLog.textContent='';
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'wb-conv-start', name:f.name}, '*'); }catch(e){}
+    var dpi=parseInt($('teDpi').value,10)||300, forceOcr=$('teForce').checked, lang=teLang;
+    log(teLog,'读取 PDF：'+f.name);
+    f.arrayBuffer().then(function(ab){
+      return getPdfDocument({data:ab.slice(0),isEvalSupported:false});
+    }).then(async function(pdf){
+      var N=pdf.numPages;
+      log(teLog,'共 '+N+' 页，语言='+lang+(forceOcr?'，强制OCR':''));
+      var pagesText=[], worker=null, ocrPages=0, textPages=0;
+      for(var p=1;p<=N;p++){
+        var page=await pdf.getPage(p);
+        var text='';
+        if(!forceOcr){ try{ text=buildText(await page.getTextContent()); }catch(e){ text=''; } }
+        if(forceOcr || text.trim().length<12 || textLooksGarbage(text)){
+          if(!tessReady){
+            log(teLog,'第 '+p+' 页需 OCR 识别，正在联网加载识别引擎（首次约 10–30MB，含中文识别模型）…');
+            try{
+              await loadScript(CDN.tess);
+              window.Tesseract=_libs.Tesseract=window.Tesseract;
+              TESS_OPTS={ workerPath:'libs/tesseract/worker.min.js', corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/', langPath:'https://tessdata.projectnaptha.com/4.0.0/', logger:function(){} };
+              log(teLog,'✔ 识别引擎脚本已下载，初始化 OCR 中…');
+              try{ worker = await window.Tesseract.createWorker(lang, 1, TESS_OPTS); }
+              catch(e3){
+                TESS_OPTS.workerPath='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/worker.min.js';
+                worker = await window.Tesseract.createWorker(lang, 1, TESS_OPTS);
+              }
+              tessReady=true;
+              log(teLog,'✔ OCR 就绪（语言：'+lang+'）');
+            }catch(e2){
+              log(teLog,'⚠️ 识别引擎加载失败（需联网下载识别模型，可能被网络拦截）。本页已跳过OCR。若一直失败，请在聊天里告诉我，我把识别引擎打包进本地库，实现离线识别。','err');
+              try{page.cleanup();}catch(_){}
+              pagesText.push(''); continue;
+            }
+          }
+          var scale=dpi/72, vp=page.getViewport({scale:scale});
+          var canvas=document.createElement('canvas'); canvas.width=Math.floor(vp.width); canvas.height=Math.floor(vp.height);
+          var ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+          await page.render({canvasContext:ctx,viewport:vp}).promise;
+          var r=await worker.recognize(canvas); text=(r.data&&r.data.text)||'';
+          ocrPages++;
+          log(teLog,'· OCR 第 '+p+' 页完成');
+        } else {
+          textPages++;
+          log(teLog,'· 提取第 '+p+' 页文字（文字层）');
+        }
+        pagesText.push(String(text).replace(/\r/g,''));
+        try{page.cleanup();}catch(e){}
+      }
+      if(worker){ try{ await worker.terminate(); }catch(e){} }
+      var full=pagesText.join('\n\n');
+      var base=baseNameOf(f);
+      var wantTxt=(teFmt==='txt'||teFmt==='both'), wantEpub=(teFmt==='epub'||teFmt==='both');
+      if(wantTxt){ dlLink(new Blob([full],{type:'text/plain;charset=utf-8'}), base+'.txt', '📄'); log(teLog,'✔ 已生成 TXT','ok'); }
+      if(wantEpub){
+        if(window.PdfToolZip && window.PdfToolZip.buildEpub){
+          var chaps=splitChapters(full);
+          var epub=window.PdfToolZip.buildEpub({title:base,author:'',chapters:chaps});
+          dlLink(new Blob([epub],{type:'application/epub+zip'}), base+'.epub', '📚');
+          log(teLog,'✔ 已生成 EPUB（'+chaps.length+' 章）','ok');
+        } else {
+          log(teLog,'⚠️ EPUB 组件未加载，仅输出 TXT（可重新打开本页）','err');
+        }
+      }
+      try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'wb-conv-done', name:base}, '*'); }catch(e){}
+      log(teLog,'📊 识别统计：文字层提取 '+textPages+' 页，OCR 识别 '+ocrPages+' 页','ok');
+      log(teLog,'🎉 完成！点击上方链接下载（部分浏览器会直接存到下载目录）','ok');
+      btn.disabled=false;
+    }).catch(function(e){ log(teLog,'❌ '+ (e&&e.message?e.message:e),'err'); btn.disabled=false; try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'wb-conv-fail'}, '*'); }catch(_){} });
+  });
+
+  function dlLink(blob,name,icon){
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+    a.textContent=icon+' '+name; a.className='dl'; a.style.display='inline-block'; a.style.margin='4px';
+    teDl.appendChild(a); a.click(); setTimeout(function(){ try{URL.revokeObjectURL(a.href);}catch(e){} },4000);
+  }
+})();
+
+/* ============ 工具转换 · 清理缓存（独立功能） ============ */
+$('clearCache').addEventListener('click', function(){
+  var info=$('cacheInfo'); var msgs=[];
+  try{ ['conv_dpi','conv_lang','conv_q','te_fmt','te_lang','te_dpi'].forEach(function(k){ localStorage.removeItem(k); }); msgs.push('已清理本地设置'); }catch(e){}
+  function done(){ info.style.display='block'; info.innerHTML='🧹 '+msgs.join('；')+'。下次使用会按需重新加载（本地 libs 优先，文字型 PDF 无需联网也能跑）。'; }
+  if('caches' in window){
+    try{
+      caches.keys().then(function(keys){
+        return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+      }).then(function(deled){
+        msgs.push('已清理浏览器缓存的解析/识别引擎'+(deled&&deled.length?('（'+deled.length+' 项）'):''));
+        if(window.indexedDB){
+          ['tesseractjs','tesseract','Tesseract'].forEach(function(n){ try{ indexedDB.deleteDatabase(n); }catch(e){} });
+          msgs.push('已清理识别引擎的离线数据包');
+        }
+        done();
+      }).catch(function(){ done(); });
+    }catch(e){ done(); }
+  } else { done(); }
+});
+</script>
+</body>
+</html>

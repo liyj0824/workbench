@@ -3,16 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#7b9a73">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="小李的工作台">
 <title>小李的工作台</title>
-<link rel="manifest" href="manifest.json?v=20260729at">
-<link rel="stylesheet" href="style.css?v=20260729at">
+<link rel="manifest" href="manifest.json?v=20260803i">
+<link rel="stylesheet" href="style.css?v=20260807k">
 </head>
 <body>
+<div id="bg-layer"></div>
 <header id="topbar">
   <span id="top-title">小李的工作台</span>
   <span id="save-state" class="saved">已保存</span>
@@ -20,43 +24,59 @@
 
 <main id="screen">
   <!-- ============ 主页 ============ -->
-  <section class="page" data-page="home">
-    <div class="home-quote" id="home-quote">
+  <section class="page" id="page-home" data-page="home">
+    <div id="home-modules">
+    <div class="card home-card" data-hm="quote" id="hm-quote">
+      <div class="home-card-head"><span class="card-title">每日寄语</span><button class="mini-btn" id="hm-quote-bg" title="设置卡片背景">背景</button><button class="hm-hide" data-hm-hide="quote" title="隐藏此模块">隐藏</button><span class="hm-drag" title="拖拽排序">⠿</span></div>
+      <div class="home-card-body"><div class="home-quote" id="home-quote">
       <div id="home-quote-text">—— 每日寄语 ——</div>
       <div id="home-quote-explain" class="home-quote-explain"></div>
+    </div></div>
     </div>
-    <div class="card math-card">
-      <div class="card-title">今日口算 <button class="mini-btn" id="math-refresh">换一组</button></div>
-      <div id="math-grid" class="math-grid"></div>
-      <p class="hint">点击题目显示答案</p>
+    <div class="card home-card" data-hm="math" id="hm-math">
+      <div class="home-card-head"><span class="card-title">今日口算</span> <button class="mini-btn" id="math-refresh">换一组</button><button class="hm-hide" data-hm-hide="math" title="隐藏此模块">隐藏</button><span class="hm-drag" title="拖拽排序">⠿</span></div>
+      <div class="home-card-body"><div id="math-grid" class="math-grid"></div>
+      <p class="hint">点击题目显示答案</p></div>
     </div>
-    <div class="card fact-card">
-      <div class="card-title">每日资料卡</div>
-      <div id="fact-list" class="fact-list"></div>
+    <div class="card home-card" data-hm="idiom" id="hm-idiom">
+      <div class="home-card-head"><span class="card-title">成语积累</span> <button class="mini-btn" id="idiom-refresh">换一批</button><button class="hm-hide" data-hm-hide="idiom" title="隐藏此模块">隐藏</button><span class="hm-drag" title="拖拽排序">⠿</span></div>
+      <div class="home-card-body"><div id="idiom-body" class="fact-list"></div></div>
     </div>
-    <div class="card thumb-card">
-      <div class="card-title">生活速览 <button class="mini-btn" id="home-thumb-pick">选择模块</button></div>
-      <div id="home-thumbs" class="home-thumbs"></div>
+    <div class="card home-card" data-hm="knowledge" id="hm-knowledge">
+      <div class="home-card-head"><span class="card-title">常识 · 时政</span> <button class="mini-btn" id="know-refresh">换一批</button><button class="hm-hide" data-hm-hide="knowledge" title="隐藏此模块">隐藏</button><span class="hm-drag" title="拖拽排序">⠿</span></div>
+      <div class="home-card-body"><div id="know-body" class="fact-list"></div></div>
     </div>
-    <div class="card quick-add-card" id="quick-add-card">
-      <div class="card-title">快速记一笔 <button class="mini-btn" id="qa-toggle" title="显示/隐藏按钮">编辑</button></div>
-      <div id="home-quick-add" class="quick-add-grid">
+    <div class="card home-card" data-hm="thumbs" id="hm-thumbs">
+      <div class="home-card-head"><span class="card-title">生活速览</span> <button class="mini-btn" id="home-thumb-pick">选择模块</button><button class="hm-hide" data-hm-hide="thumbs" title="隐藏此模块">隐藏</button><span class="hm-drag" title="拖拽排序">⠿</span></div>
+      <div class="home-card-body"><div id="home-thumbs" class="home-thumbs"></div></div>
+    </div>
+    <div class="card home-card" data-hm="quickadd" id="hm-quickadd">
+      <div class="home-card-head"><span class="card-title">快速记一笔</span> <button class="mini-btn" id="qa-toggle" title="显示/隐藏按钮">编辑</button><button class="hm-hide" data-hm-hide="quickadd" title="隐藏此模块">隐藏</button><span class="hm-drag" title="拖拽排序">⠿</span></div>
+      <div class="home-card-body"><div id="home-quick-add" class="quick-add-grid">
         <button class="qa-btn" id="qa-memo">备忘</button>
         <button class="qa-btn" id="qa-weight">体重</button>
         <button class="qa-btn" id="qa-period">经期</button>
         <button class="qa-btn" id="qa-account">记账</button>
-      </div>
+        <button class="qa-btn" id="qa-todo">待办</button>
+      </div></div>
+    </div>
+    <div class="card home-card" data-hm="countdown" id="hm-countdown">
+      <div class="home-card-head"><span class="card-title">倒计时</span> <button class="mini-btn" id="cd-add" title="新建倒计时">+</button><button class="hm-hide" data-hm-hide="countdown" title="隐藏此模块">隐藏</button><span class="hm-drag" title="拖拽排序">⠿</span></div>
+      <div class="home-card-body"><div id="cd-list" class="cd-list"></div></div>
+    </div>
+    </div><!-- /home-modules：仅包含卡片，排序逻辑只动卡片 -->
+    <!-- 已隐藏模块回收区（在卡片区下方） -->
+    <div class="hm-hidden-zone" id="hm-hidden-zone" style="display:none"></div>
+    <!-- 公考版/日常版 切换（最底端，底部导航上方） -->
+    <div class="su-switch" id="home-layout-switch">
+      <button class="su-switch-btn kaokao" id="su-btn-kaokao">公考版</button>
+      <button class="su-switch-btn daily" id="su-btn-daily">日常版</button>
     </div>
   </section>
 
   <!-- ============ 学习 ============ -->
-  <section class="page" data-page="study" hidden>
+  <section class="page" id="page-study" data-page="study" hidden>
     <div class="layout">
-      <nav class="side-nav" id="study-nav">
-        <button class="fold-btn" id="study-fold">‹</button>
-        <div class="nav-scroll" id="study-cats"></div>
-        <button class="mini-btn" id="study-new-cat">+ 新建项目</button>
-      </nav>
       <div class="main-work" id="study-main">
         <div class="module-head" id="module-head">
           <span id="module-name">请选择模块</span>
@@ -66,36 +86,32 @@
           <button class="phase active" data-phase="basic">基础学习</button>
           <button class="phase" data-phase="improve">提升阶段</button>
         </div>
-        <button class="btn-primary" id="study-add">+ 新建（基础/提升）</button>
-        <ul class="item-list" id="study-list"></ul>
-        <div class="color-row">
-          <span>状态栏/选项卡颜色</span>
-          <button class="mini-btn" id="study-color">取色</button>
-          <span class="swatches" id="study-swatches"></span>
+        <div class="study-btn-row">
+        <button class="btn-primary" id="study-add">+ 新建</button>
         </div>
+        <div class="study-btn-row">
+        <button class="btn-secondary" id="study-quick" style="width:100%;" title="快捷创建：课程/试卷快速记录">快捷创建</button>
+        </div>
+        <ul class="item-list" id="study-list"></ul>
       </div>
     </div>
   </section>
 
   <!-- ============ 娱乐 ============ -->
-  <section class="page" data-page="ent" hidden>
-    <div class="sub-tabs">
+  <section class="page" id="page-ent" data-page="ent" hidden>
+    <div class="sub-tabs" id="ent-subtabs">
       <button class="sub active" data-sub="novel">小说</button>
       <button class="sub" data-sub="insp">灵感</button>
     </div>
     <div id="ent-novel">
       <div class="layout">
-        <nav class="side-nav" id="novel-nav">
-          <button class="fold-btn" id="novel-fold">‹</button>
-          <div class="nav-scroll" id="novel-filters"></div>
-          <button class="mini-btn" id="n-tag-manage" style="margin:8px 10px 12px;">标签管理</button>
-        </nav>
         <div class="main-work" id="novel-main">
+          <div class="novel-toolbar"><button class="tag-admin-btn" id="ent-color">取色</button><button class="tag-admin-btn" id="n-tag-manage-top">标签管理</button></div>
           <div class="search-bar">
             <input type="text" id="novel-search" placeholder="搜索小说名称…">
           </div>
+          <button class="btn-primary" id="n-add" style="margin:0 0 10px;">+ 添加小说</button>
           <ul class="item-list" id="novel-list"></ul>
-          <button class="btn-primary" id="n-add">+ 添加小说</button>
         </div>
       </div>
     </div>
@@ -110,12 +126,8 @@
   </section>
 
   <!-- ============ 生活 ============ -->
-  <section class="page" data-page="life" hidden>
+  <section class="page" id="page-life" data-page="life" hidden>
     <div class="layout">
-      <nav class="side-nav" id="life-nav">
-        <button class="fold-btn" id="life-fold">‹</button>
-        <div class="nav-scroll" id="life-feats"></div>
-      </nav>
       <div class="main-work" id="life-main">
         <div id="life-detail"><p class="hint">从左侧选择功能</p></div>
       </div>
@@ -123,49 +135,158 @@
   </section>
 
   <!-- ============ 个性化 ============ -->
-  <section class="page" data-page="settings" hidden>
+  <section class="page" id="page-settings" data-page="settings" hidden>
     <div class="card">
     <div class="card-title">个性化设置</div>
-    <button class="btn-primary" id="set-help" style="width:100%;margin-bottom:14px;">使用说明 / 备份小贴士</button>
-    <div class="set-row"><span>图标风格</span>
-        <select id="set-icon"><option value="guofeng">国风水墨</option><option value="oil">油画小花</option><option value="weiding">未定事件簿</option></select>
+
+    <!-- 一、外观 -->
+    <div class="set-group">
+      <div class="set-group-title">一、外观</div>
+      <div class="set-row"><span>图标风格</span>
+        <select id="set-icon"><option value="guofeng">简笔小花</option><option value="oil">油画睡莲</option><option value="weiding">未定事件簿</option></select>
       </div>
       <div class="set-row"><span>界面字体</span>
         <select id="set-font">
-          <option value="slimgold">瘦金体</option>
           <option value="song" selected>宋体</option>
           <option value="fang">仿宋</option>
           <option value="kai">楷体</option>
         </select>
       </div>
-      <div class="set-row"><span>全局背景</span><button class="mini-btn" id="set-globalbg">设置</button></div>
-      <div class="set-row"><span>底部导航选中色</span><button class="mini-btn" id="set-navcolor">取色</button></div>
-      <div class="set-row"><span>主页顶部背景</span><button class="mini-btn" id="set-homebg">设置</button></div>
-      <div class="set-row"><span>降雨带伞提醒</span><input type="checkbox" id="set-rain"></div>
-      <div class="set-row"><span>主页显示生活速览</span><input type="checkbox" id="set-thumbs" checked></div>
-      <div class="set-row"><span>重点标注颜色</span><button class="mini-btn" id="set-hlcolor">取色</button></div>
-      <div class="set-row set-tabs-row"><span>显示栏目</span>
-        <label><input type="checkbox" class="set-tab" value="study" checked> 学习</label>
-        <label><input type="checkbox" class="set-tab" value="ent" checked> 娱乐</label>
-        <label><input type="checkbox" class="set-tab" value="life" checked> 生活</label>
+      <div class="set-row"><span>字体大小</span><input type="range" id="set-fontsize" min="10" max="24" step="1" style="width:55%;"><span id="set-fontsize-v" style="font-size:12px;min-width:28px;text-align:right;">15px</span></div>
+      <div class="set-row"><span>手机字体</span>
+        <span class="mobilefont-pills">
+          <button type="button" class="mini-btn mobilefont-pill active" data-mf="system" title="手机端跟随手机自带字体，不下载大字体（推荐）">跟随手机</button>
+          <button type="button" class="mini-btn mobilefont-pill" data-mf="custom" title="手机端也使用打包字体（会下载 4~5MB 字体文件）">打包字体</button>
+        </span>
       </div>
-      <div class="set-row set-backup-row"><span>数据备份</span>
+      <div class="set-row"><span>底部导航选中色</span><button class="mini-btn" id="set-navcolor">取色</button></div>
+    </div>
+
+    <!-- 二、底图背景 -->
+    <div class="set-group">
+      <div class="set-group-title">二、底图背景</div>
+      <div class="set-row"><span>全局底图背景</span><button class="mini-btn" id="set-globalbg">设置</button></div>
+      <div class="set-row"><span>首页区底图</span><button class="mini-btn set-region-reset" data-region="home">跟随全局</button><button class="mini-btn" id="set-regionbg-home">设置</button></div>
+      <div class="set-row"><span>学习区底图</span><button class="mini-btn set-region-reset" data-region="study">跟随全局</button><button class="mini-btn" id="set-regionbg-study">设置</button></div>
+      <div class="set-row"><span>娱乐区底图</span><button class="mini-btn set-region-reset" data-region="ent">跟随全局</button><button class="mini-btn" id="set-regionbg-ent">设置</button></div>
+      <div class="set-row"><span>生活区底图</span><button class="mini-btn set-region-reset" data-region="life">跟随全局</button><button class="mini-btn" id="set-regionbg-life">设置</button></div>
+      <div class="set-row"><span>个性区底图</span><button class="mini-btn set-region-reset" data-region="settings">跟随全局</button><button class="mini-btn" id="set-regionbg-settings">设置</button></div>
+    </div>
+
+    <!-- 三、导航窗格与悬浮球 -->
+    <div class="set-group">
+      <div class="set-group-title">三、导航窗格与悬浮球</div>
+      <div class="set-row set-fold"><span>导航窗格</span>
+        <select id="set-navmode">
+          <option value="strip">侧边弹窗</option>
+          <option value="float">底部弹窗</option>
+        </select>
+      </div>
+      <div class="set-sub-title">图柄设置</div>
+      <div class="set-row"><span>悬浮球模式</span>
+        <select id="set-handicon">
+          <option value="default">星期日</option>
+          <option value="custom">自定义图片</option>
+        </select>
+      </div>
+      <div class="set-row" style="flex-wrap:wrap;"><span>更换图片</span>
+        <button class="mini-btn" id="set-handicon-file">选择并裁剪图片</button>
+      </div>
+      <div class="set-row"><span>悬浮球大小</span><input type="range" id="set-handsize" min="36" max="120" step="2" style="width:55%;"><span id="handsize-val" style="font-size:12px;color:#8fa382;min-width:36px;text-align:right;">60px</span></div>
+      <div class="set-row"><span>悬浮球形状</span>
+        <select id="set-handshape">
+          <option value="circle">圆形</option>
+          <option value="rounded">圆角方形</option>
+          <option value="square">方角方形</option>
+        </select>
+      </div>
+      <div class="set-row" style="flex-wrap:wrap;"><span>侧边弹窗位置</span>
+        <button class="mini-btn" id="set-drawer-reset">重置到默认位置</button>
+      </div>
+      <div class="set-row" style="flex-wrap:wrap;"><span>底部弹窗位置</span>
+        <button class="mini-btn" id="set-float-reset">重置到默认位置</button>
+      </div>
+    </div>
+
+    <!-- 四、清透微磨砂 -->
+    <div class="set-group">
+      <div class="set-group-title">四、清透微磨砂</div>
+      <div class="set-row"><span>清透程度</span><input type="range" id="set-glassop" min="0" max="100" step="1" style="width:55%;"></div>
+      <div class="set-row set-glass-region set-fold"><span class="set-label-wrap">区域开关</span>
+        <span class="glass-checks">
+          <label><input type="checkbox" class="set-glass" value="home" checked> 首页</label>
+          <label><input type="checkbox" class="set-glass" value="study" checked> 学习</label>
+          <label><input type="checkbox" class="set-glass" value="ent" checked> 娱乐</label>
+          <label><input type="checkbox" class="set-glass" value="life" checked> 生活</label>
+          <label><input type="checkbox" class="set-glass" value="settings" checked> 个性化</label>
+        </span>
+      </div>
+    </div>
+
+    <!-- 五、首页布局 -->
+    <div class="set-group">
+      <div class="set-group-title">五、首页布局</div>
+      <div class="set-row"><span>主页模块顺序</span><button class="mini-btn" id="set-hmorder">排版</button></div>
+      <div class="set-row set-tabs-row set-fold"><span>显示栏目</span>
+        <span class="tab-checks">
+          <label><input type="checkbox" class="set-tab" value="study" checked> 学习</label>
+          <label><input type="checkbox" class="set-tab" value="ent" checked> 娱乐</label>
+          <label><input type="checkbox" class="set-tab" value="life" checked> 生活</label>
+        </span>
+      </div>
+    </div>
+
+    <!-- 六、数据与辅助功能 -->
+    <div class="set-group">
+      <div class="set-group-title">六、数据与辅助功能</div>
+
+      <div class="set-sub">数据存储与管理</div>
+      <div class="set-row set-clear-group">
+        <button class="mini-btn warn" id="set-clear-records">清空工作区</button>
+        <button class="mini-btn warn" id="set-clear-personal">清空个性化图片与设置</button>
+        <button class="mini-btn danger" id="set-clear">清空全部数据</button>
+        <button class="mini-btn" id="data-view">查看</button>
+      </div>
+      <div class="set-row set-clear-group">
+        <button class="mini-btn" id="set-clear-cache">清理存储缓存</button>
+        <span style="font-size:12px;color:#8a8a8a;align-self:center;">仅清冗余缓存，不删你的数据</span>
+      </div>
+      <p class="hint">点「查看」了解数据存储方式与三种清空的区别。若提示"存储空间已满"，先点「清理存储缓存」释放空间。</p>
+
+      <div class="set-sub">备份数据 / 导出</div>
+      <div class="set-row set-backup-row">
         <button class="mini-btn" id="set-export">导出数据</button>
+        <button class="mini-btn" id="export-view">查看</button>
+      </div>
+
+      <div class="set-sub">恢复数据 / 导入</div>
+      <div class="set-row set-backup-row">
         <button class="mini-btn" id="set-import">导入数据</button>
         <input type="file" id="set-import-file" accept=".json,application/json" hidden>
+        <button class="mini-btn" id="import-view">查看</button>
       </div>
-      <p class="hint">换新链接/新设备时：旧页面点「导出数据」保存文件，新页面点「导入数据」选择该文件即可搬家。</p>
-      <button class="mini-btn danger" id="set-clear">清空全部数据</button>
-      <p class="hint">数据仅保存在本机浏览器，不会上传。</p>
+    </div>
+
     </div>
   </section>
 </main>
+
+<div id="nav-float-btn" class="nav-float-btn" hidden></div>
+<button id="nav-drawer-handle" class="nav-drawer-handle" hidden aria-label="打开导航"><img class="ndh-img" src="assets/nav-handle/head.png" alt="导航"></button>
 
 <nav id="bottombar"></nav>
 
 <div id="toast"></div>
 <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
 
-<script src="app.js?v=20260729at"></script>
+<div id="coll-drawer" class="coll-drawer" hidden>
+  <div class="coll-drawer-overlay" id="coll-drawer-overlay"></div>
+  <div class="coll-drawer-sheet">
+    <div class="coll-drawer-handle"></div>
+    <div id="coll-drawer-content"></div>
+  </div>
+</div>
+
+<script src="app.js?v=20260807k"></script>
 </body>
 </html>
