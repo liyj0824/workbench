@@ -202,7 +202,7 @@ function defaultData() {
         inspiration: []
       },
       life: {
-        order: ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "pdftool", "cardwall"],
+        order: ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "cardwall"],
         hidden: [],
         homeVisible: ["weather", "memo"],
         weather: { city: "鞍山市", temp: null, precip: 0, today: null, tomorrow: null },
@@ -238,7 +238,6 @@ function defaultData() {
     { key: "docs", name: "证件记录" },
     { key: "travel", name: "旅游计划" },
     { key: "collection", name: "云收藏柜" },
-    { key: "pdftool", name: "转换工具" },
     { key: "cardwall", name: "动态卡面" }
   ];
   var SEASONS = [["spring", "春"], ["summer", "夏"], ["autumn", "秋"], ["winter", "冬"]];
@@ -372,7 +371,7 @@ function defaultData() {
             if (!this.data.life.cardBg) this.data.life.cardBg = {};
             this.data.life.cardBg = Object.assign(d.life.cardBg, this.data.life.cardBg);
             /* 把新增功能默认加入可见列表（兼容旧数据） */
-            var defaultOrder = ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "pdftool"];
+            var defaultOrder = ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "cardwall"];
             defaultOrder.forEach(function (k) { if (self.data.life.order.indexOf(k) < 0 && self.data.life.hidden.indexOf(k) < 0) self.data.life.order.push(k); });
             /* 旧模块配色迁移到莫兰迪淡绿/青色系 */
             var OLD = ["#5f7a5a", "#b08d4f", "#3a6ea5", "#a5503a", "#7a5aa5", "#4a8a6a"];
@@ -477,8 +476,9 @@ function defaultData() {
       });
       presetHtml += '</div>';
     }
-    openModal('<h3>' + (opts.title || '取色（色相 / 饱和度 / 明度）') + '</h3>' +
-      '<div class="picker">' +
+    openModal('<div class="pk-header"><h3>' + (opts.title || '取色（色相 / 饱和度 / 明度）') + '</h3>' +
+      '<div class="pk-top-actions"><button class="btn-cancel" id="pk-cancel">取消</button><button class="btn-ok" id="pk-ok">确定</button></div></div>' +
+      '<div class="pk-scroll"><div class="picker">' +
       presetHtml +
       '<div class="hex-row"><span>颜色代码</span><input type="text" id="pk-hex" value="' + hex + '" maxlength="7" placeholder="' + hex + '" autocomplete="off" spellcheck="false"></div>' +
       '<div class="pk-hint" style="font-size:11px;color:#999;margin:-2px 0 8px;padding-left:2px;">可直接删除重新输入，输满 6 位才生效</div>' +
@@ -486,9 +486,8 @@ function defaultData() {
       '<div class="row"><span>饱和</span><input type="range" id="pk-s" min="0" max="100" value="' + s + '" style="flex:1"></div>' +
       '<div class="row"><span>明度</span><input type="range" id="pk-v" min="0" max="100" value="' + v + '" style="flex:1"></div>' +
       '<div class="preview" id="pk-prev"></div>' +
-      '<div class="form-actions"><button class="btn-secondary" id="pk-cancel">返回</button><button class="btn-primary" id="pk-ok">确定</button></div>' +
       (opts.note ? '<p style="font-size:12px;color:#6b7d63;margin:6px 0 0;padding:8px 10px;background:#f3f5f0;border-radius:8px;">' + esc(opts.note) + '</p>' : '') +
-      '</div>');
+      '</div></div>', "picker-modal");
     function refreshVisual() {
       $("pk-prev").style.background = rgbToHex.apply(null, hsvToRgb(h, s, v));
     }
@@ -549,11 +548,11 @@ function defaultData() {
     var allowGrad = opts.gradient !== false; /* 默认可用双色渐变：生活区 / 分区底图 / 全局底图都支持 */
     var allowGlass = opts.allowGlass === true; /* 仅"模块主题色"等模块级背景选择时才显示清透微磨砂 */
     var noImage = opts.noImage === true; /* 模块主题色等特定调用方关闭图片选项 */
-    /* 模块 glass 模式初始值：仅当当前是 glass 类型时才默认选中 */
-    var glassOn = (cur && typeof cur === "object" && cur.type === "glass");
     /* 取当前颜色作为初始值 */
     var hex = DEFAULT_BG_HEX;
     var cur = opts.current;
+    /* 模块 glass 模式初始值：仅当当前是 glass 类型时才默认选中 */
+    var glassOn = (cur && typeof cur === "object" && cur.type === "glass");
     /* 渐变模式初始值 */
     var gradA = "#729A93", gradB = "#FBFEE5";
     /* 图片定位初始值（编辑已有图片时恢复） */
@@ -572,8 +571,10 @@ function defaultData() {
         imgPosX = _off.x; imgPosY = _off.y; imgZoom = _off.zoom;
       }
     }
-    /* chosenType：用户最终选定的背景类型（color/image/gradient/glass）；初始化为当前背景类型 */
+    /* chosenType：用户最终选定的背景类型（color/image/gradient/glass）；初始化为当前背景类型。
+       但「取色/选项卡样式」等调用传 noImage=true，若当前类型是 image 则没有对应分区，会显示空白；此时回退到 color。 */
     var chosenType = (cur && typeof cur === "object" && cur.type) ? cur.type : "color";
+    if (noImage && chosenType === "image") chosenType = "color";
     var hsv = hexToHsv(hex); var h = hsv[0], s = hsv[1], v = hsv[2];
     var title = opts.title || "背景（颜色或图片）";
     /* 字体颜色控件（仅当调用方传 opts.fontColor 时显示）：深绿 / 黑 / 白。
@@ -630,14 +631,15 @@ function defaultData() {
       {name:"莫兰迪渐变",     a:"#72749A", b:"#FFF5DF"}
     ];
     /* 渐变内容已内联到 openModal 的 pk-sec-grad 段（三 Tab 模式） */
-    openModal('<h3>' + esc(title) + '</h3>' +
-      '<div class="picker">' +
+    openModal('<div class="pk-header"><h3>' + esc(title) + '</h3>' +
+      '<div class="pk-top-actions"><button class="btn-cancel" id="pk-cancel">取消</button><button class="btn-ok" id="pk-ok">确定</button></div></div>' +
+      '<div class="pk-scroll"><div class="picker">' +
       '<div id="pk-mode" class="pk-mode">已选类型：' + (chosenType === "image" ? "图片" : chosenType === "gradient" ? "双色渐变" : "纯色") + '</div>' +
       '<div class="pk-tabs">' +
         '<button type="button" class="pk-tab" data-sec="color"><span class="pk-tab-dot"></span>纯色</button>' +
         (noImage ? '' : '<button type="button" class="pk-tab" data-sec="image"><span class="pk-tab-dot"></span>图片</button>') +
         (allowGrad ? '<button type="button" class="pk-tab" data-sec="gradient"><span class="pk-tab-dot"></span>渐变</button>' : '') +
-        (allowGlass ? '<button type="button" class="pk-tab" data-sec="glass"><span class="pk-tab-dot"></span>清透微磨砂</button>' : '') +
+        (allowGlass ? '<button type="button" class="pk-tab" data-sec="glass"><span class="pk-tab-dot"></span>清透</button>' : '') +
       '</div>' +
       '<div class="pk-sec" id="pk-sec-color" style="display:' + (chosenType === "color" ? "block" : "none") + '">' +
         '<div class="hex-row"><span>颜色代码</span><input type="text" id="pk-hex" value="' + hex + '" maxlength="7" placeholder="#f7f5ed" autocomplete="off" spellcheck="false"></div>' +
@@ -658,7 +660,7 @@ function defaultData() {
       '</div>') +
       (allowGlass ?
       '<div class="pk-sec" id="pk-sec-glass" style="display:' + (chosenType === "glass" ? "block" : "none") + '">' +
-        '<div class="pk-section-title">清透微磨砂（酷狗风）</div>' +
+        '<div class="pk-section-title">清透（酷狗风）</div>' +
         '<div class="row" style="margin-top:12px;"><span>清透程度</span><input type="range" id="pk-glassop" min="0" max="100" value="' + ((Store.data.settings.glassOpacity != null) ? Store.data.settings.glassOpacity : 72) + '"></div>' +
         '<div class="pk-hint" id="pk-glassop-hint" style="font-size:11px;color:#8a9a8f;margin:-4px 0 4px;padding-left:2px;text-align:right;">往右拉=更清透(底图更明显)，往左拉=磨砂更重</div>' +
       '</div>' : '') +
@@ -675,7 +677,7 @@ function defaultData() {
         '<div class="pk-grad-preview" id="pk-grad-prev" style="background:linear-gradient(135deg,'+gradA+','+gradB+')"></div>' +
       '</div>' : '') +
       fontColorBlock +
-      '<div class="form-actions"><button class="btn-secondary" id="pk-cancel">返回</button><button class="btn-primary" id="pk-ok">确定</button></div></div>');
+      '</div></div>', "picker-modal");
     var imgData = existingImgData || null;
     var imgArea = $("pk-img-area");
     /* 图片选择处理：显示预览+定位控件 */
@@ -771,7 +773,11 @@ function defaultData() {
             var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
             cv.getContext("2d").drawImage(img, 0, 0, w, h);
             /* 底图不需要透明，转 JPEG 大幅压缩体积，避免原图几 MB 直接撑爆 localStorage */
-            showImgControls(cv.toDataURL("image/jpeg", 0.7));
+            var data = cv.toDataURL("image/jpeg", 0.7);
+            /* 加固：toDataURL 在部分手机端对超大/特殊格式图片会静默返回空串（不抛异常），
+               导致背景“识别失败”。此时降级为原图直接使用（rd.result = 未压缩原图 dataURL） */
+            if (!data || data.indexOf("data:image") !== 0) throw new Error("compress-empty");
+            showImgControls(data);
           } catch (e) { showImgControls(rd.result); }
         };
         img.onerror = function () { toast("图片读取失败"); };
@@ -791,7 +797,7 @@ function defaultData() {
     function setMode(t) {
       chosenType = t;
       var tag = $("pk-mode");
-      if (tag) tag.textContent = "已选类型：" + (t === "image" ? "图片" : t === "gradient" ? "双色渐变" : t === "glass" ? "清透微磨砂" : "纯色");
+      if (tag) tag.textContent = "已选类型：" + (t === "image" ? "图片" : t === "gradient" ? "双色渐变" : t === "glass" ? "清透" : "纯色");
       document.querySelectorAll(".pk-tab").forEach(function (tab) { tab.classList.toggle("active", tab.getAttribute("data-sec") === t); });
       /* 直接用 JS 控制 pk-sec 显示/隐藏，不依赖 CSS .pk-sec.active { display:block } 规则 */
       document.querySelectorAll(".pk-sec").forEach(function (s) {
@@ -1034,7 +1040,9 @@ function defaultData() {
           try {
             var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
             cv.getContext("2d").drawImage(img, 0, 0, w, h);
-            showControls(cv.toDataURL("image/png"));
+            var data = cv.toDataURL("image/png");
+            if (!data || data.indexOf("data:image") !== 0) throw new Error("compress-empty");
+            showControls(data);
           } catch (e) { showControls(rd.result); }
         };
         img.onerror = function () { toast("图片读取失败"); };
@@ -1267,9 +1275,8 @@ function defaultData() {
   var FONT_MAP = {
     /* 宋体：远程 Noto Serif SC（标准宋体），不打包 */
     song:     '"Noto Serif SC","Songti SC","STSong","SimSun","宋体","Source Han Serif SC",serif',
-    fang:     'fs-fangsong, "Noto Serif SC","FangSong","STFangsong","仿宋",serif',
-    kai:      'fs-kaiti, "Long Cang","KaiTi","STKaiti","楷体",serif'
-    /* 注：nanxiyoumo (南西油墨宋) 已于 2026-08-05 按用户要求删除 */
+    fang:     'fs-fangsong, "Noto Serif SC","FangSong","STFangsong","仿宋",serif'
+    /* 注：nanxiyoumo (南西油墨宋) 已于 2026-08-05 按用户要求删除；2026-08-09 移除「楷体」选项及 fs-kaiti 字体 */
   };
   function isMobileLike() {
     try {
@@ -1287,11 +1294,9 @@ function defaultData() {
   function applyFont() {
     var s = Store.data.settings;
     var style = s.fontStyle || "song";
-    var mobileSys = (s.mobileUseSystemFont === undefined) ? true : !!s.mobileUseSystemFont;
-    var useSystem = mobileSys && isMobileLike();
-    var stack = useSystem ? systemFontStack() : (FONT_MAP[style] || FONT_MAP.song);
+    var stack = FONT_MAP[style] || FONT_MAP.song;
     document.documentElement.style.setProperty("--ui-font", stack);
-    document.documentElement.setAttribute("data-font-mode", useSystem ? "system" : "custom");
+    document.documentElement.setAttribute("data-font-mode", "custom");
   }
   function applyFontSize() {
     var size = Store.data.settings.fontSize || 15;
@@ -4907,24 +4912,9 @@ function defaultData() {
     else if (key === "travel") html += lifeTravelHtml();
     else if (key === "docs") html += lifeDocsHtml();
     else if (key === "collection") html += lifeCollectionHtml();
-    else if (key === "pdftool") html += lifePdfToolHtml();
     else if (key === "cardwall") html += lifeCardwallHtml();
     html += '</div>';
-    /* 后台保护：转换工具正在转换时切换生活模块，不卸载其 iframe（移入隐藏容器继续跑） */
-    if(key!=='pdftool' && window.__wbConvRunning){ var _pf=document.getElementById('pdftool-frame'); if(_pf&&_pf.parentNode){ var _park=document.getElementById('bg-park'); if(!_park){_park=document.createElement('div');_park.id='bg-park';_park.style.display='none';document.body.appendChild(_park);} _park.appendChild(_pf); } }
     box.innerHTML = html;
-    /* 回到转换工具：若此前有后台保留的 iframe 则接回，否则新建 */
-    if(key==='pdftool'){
-      var park=document.getElementById('bg-park');
-      var slot=document.getElementById('pdftool-slot');
-      /* 注意：#bg-park 只在"后台转换中"才存在，首次进入时必定为 null。
-         这里只依赖 slot 是否存在，park 有则接回后台 iframe，没有就新建。 */
-      if(slot){
-        var pf = park ? park.querySelector('#pdftool-frame') : null;
-        if(pf){ pf.style.cssText='width:100%;height:80vh;border:0;border-radius:14px;background:#faf9f5;'; if(slot.parentNode) slot.parentNode.replaceChild(pf, slot); }
-        else { var ifr=document.createElement('iframe'); ifr.id='pdftool-frame'; ifr.src='conv-tools.html?v=20260807k'; ifr.title='转换工具'; ifr.style.cssText='width:100%;height:80vh;border:0;border-radius:14px;background:#faf9f5;'; slot.appendChild(ifr); }
-      }
-    }
     applyBg($("lc"), bg);
     /* 生活区 UI 模式切换 */
     var lc = $("lc");
@@ -4936,16 +4926,10 @@ function defaultData() {
     $("lc-hide").onclick = function () { hideLifeFeature(key); };
     bindLifeHandlers(key);
   }
-  function lifePdfToolHtml() {
-    return '<div class="pdf-tool-wrap">' +
-      '<p class="hint" style="margin:0 0 10px;color:rgba(90,63,63,.72);">「转换工具」全部在本地浏览器运行，文件不上传。含：PDF 合并/拆分、重排、压缩、去水印/修改（遮盖错别字，保留原印章）、转 TXT/EPUB、图片转 PDF、PDF 转图片。处理好的文件点「下载」存到你设备，再放回百度网盘即可。</p>' +
-      '<span id="pdftool-slot" style="display:block;width:100%;height:80vh;"></span>' +
-      '</div>';
-  }
   function lifeCardwallHtml() {
-    return '<div class="pdf-tool-wrap">' +
+    return '<div class="cardwall-wrap">' +
       '<p class="hint" style="margin:0 0 10px;color:rgba(90,63,63,.72);">「动态卡面」把未定事件簿的动态卡面 MP4 存在你这台电脑的浏览器里，可随时全屏欣赏，不占手机空间。视频仅本地保存、不上传；用「清理缓存」可随时释放空间。</p>' +
-      '<iframe id="cardwall-frame" src="life-cardwall.html?v=20260807k" title="动态卡面" ' +
+      '<iframe id="cardwall-frame" src="life-cardwall.html?v=20260808h" title="动态卡面" ' +
       'style="width:100%;height:82vh;border:0;border-radius:14px;background:#fbf6f3;"></iframe>' +
       '</div>';
   }
@@ -5603,6 +5587,7 @@ function defaultData() {
     return '<div class="layout acc-layout" id="acc-layout">' +
         '<div class="main-work acc-main">' +
         '<div class="acc-receipt" id="acc-receipt">' +
+          '<img class="rc-lotus" src="assets/dunhuang-lotus-clean.png" alt="" aria-hidden="true">' +
           '<div class="rc-head">' +
                             '<div class="rc-sub" id="rc-sub">账 单</div>' +
           '</div>' +
@@ -5997,7 +5982,9 @@ function defaultData() {
         try {
           var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
           cv.getContext("2d").drawImage(img, 0, 0, w, h);
-          cb(cv.toDataURL("image/jpeg", 0.72));
+          var data = cv.toDataURL("image/jpeg", 0.72);
+          if (!data || data.indexOf("data:image") !== 0) throw new Error("compress-empty");
+          cb(data);
         } catch (e) { cb(rd.result); }
       };
       img.onerror = function () { cb(rd.result); };
@@ -7503,12 +7490,15 @@ function defaultData() {
 
   function lifeCollectionHtml() {
     ensureCollectionSeeded();
-    return '<div id="lc-collection-body">' + collectionToolbarHtml() + collectionTabsHtml() + collectionSubnavHtml() + '<div id="coll-items">' + collectionItemsHtml() + '</div>' + collectionBatchBarHtml() + '</div>';
+    return '<div id="lc-collection-body">' + collectionToolbarHtml() + collectionTabsHtml() + collectionBatchBannerHtml() + '<div id="coll-items">' + collectionItemsHtml() + '</div>' + collectionBatchBarHtml() + collectionFilterModalHtml() + '</div>';
   }
 
   /* 收藏链接点击：小红书优先唤起 App，失败降级打开网页版 */
   function openCollectionLink(url) {
     if (!url) return;
+    /* 兼容：用户可能把"标题+链接"整段粘贴进链接框，从中提取真实 http(s) 链接 */
+    var m = String(url).match(/https?:\/\/[^\s<>"']+/i);
+    if (m) url = m[0];
     if (/xiaohongshu\.com/i.test(url)) {
       var m = url.match(/discovery\/item\/([a-zA-Z0-9]+)/);
       var scheme = m ? "xhsdiscover://discovery/item/" + m[1] : "xhsdiscover://";
@@ -7527,25 +7517,24 @@ function defaultData() {
     }
     window.open(url, "_blank", "noopener");
   }
+  /* 内联 onclick 在 IIFE 外访问，必须挂到 window */
+  window.openCollectionLink = openCollectionLink;
 
   function collectionToolbarHtml() {
     var c = collData();
-    return '<div class="coll-toolbar">' +
-      '<div class="coll-search"><span class="coll-sico">搜</span><input type="text" id="coll-q" placeholder="搜索名称、备注、标签…" value="' + esc(c.q || "") + '" autocomplete="off" spellcheck="false"><button class="coll-sclear' + (c.q ? '' : ' hide') + '" id="coll-q-clear">清空</button></div>' +
-      '<div class="coll-filters">' +
-        '<div class="coll-fselect"><select id="coll-status">' + collectionStatusOptions() + '</select></div>' +
-        '<div class="coll-fselect"><select id="coll-tag">' + collectionTagOptions() + '</select></div>' +
-        '<div class="coll-fselect"><select id="coll-source">' + collectionSourceOptions() + '</select></div>' +
-        '<div class="coll-fselect"><select id="coll-sort">' +
-          '<option value="time-desc"' + (c.sortBy === "time-desc" ? " selected" : "") + '>最新优先</option>' +
-          '<option value="time-asc"' + (c.sortBy === "time-asc" ? " selected" : "") + '>最早优先</option>' +
-          '<option value="name"' + (c.sortBy === "name" ? " selected" : "") + '>名称排序</option>' +
-        '</select></div>' +
-        '<button class="mini-btn' + (c.view === "list" ? " on" : "") + '" id="coll-view" title="切换视图">' + (c.view === "list" ? "卡片" : "列表") + '</button>' +
-        '<button class="mini-btn' + (c.batchMode ? " on" : "") + '" id="coll-batch">批量</button>' +
-        '<button class="mini-btn" id="coll-tagmgr">标签管理</button>' +
-        '<span class="spacer"></span>' +
-        '<button class="mini-btn" id="coll-add">+ 新建收藏</button>' +
+    return '<div class="coll-title-row">' +
+        '<div class="coll-title-actions">' +
+          '<button class="coll-tool-btn" id="coll-tagmgr">🏷 标签管理</button>' +
+          '<button class="coll-tool-btn coll-add-act" id="coll-add">＋ 新建收藏</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="coll-toolbar">' +
+        '<div class="coll-search"><span class="coll-sico">搜</span><input type="text" id="coll-q" placeholder="搜索名称、备注、标签…" value="' + esc(c.q || "") + '" autocomplete="off" spellcheck="false"><button class="coll-sclear' + (c.q ? '' : ' hide') + '" id="coll-q-clear">清空</button></div>' +
+        '<div class="coll-tool-actions">' +
+          '<button class="coll-tool-btn" id="coll-filter-toggle">筛选 ▾</button>' +
+          '<button class="coll-tool-btn' + (c.batchMode ? " on" : "") + '" id="coll-batch">' + (c.batchMode ? "退出批量" : "批量") + '</button>' +
+          '<button class="mini-btn' + (c.view === "list" ? " on" : "") + '" id="coll-view" title="切换视图">' + (c.view === "list" ? "卡片" : "列表") + '</button>' +
+        '</div>' +
       '</div>';
   }
 
@@ -7563,16 +7552,81 @@ function defaultData() {
      - 热门标签功能已彻底删除；
      - 新建类别按钮改置于分类胶囊行末尾（见 collectionTabsHtml 的 #coll-addcat）。 */
 
+  function collectionBatchBannerHtml() {
+    var c = collData();
+    if (!c.batchMode) return '';
+    return '<div class="coll-batch-banner" id="coll-batch-banner">批量选择中 · 已选 <b id="coll-batch-n">' + (c.selected || []).length + '</b> 项 · <button class="coll-banner-cancel" id="coll-batch-cancel">取消</button></div>';
+  }
   function collectionBatchBarHtml() {
     var c = collData();
     var n = (c.selected || []).length;
-    return '<div id="coll-batch-bar" class="coll-batch-bar' + (c.batchMode && n > 0 ? " show" : "") + '">' +
+    return '<div id="coll-batch-bar" class="coll-batch-bar' + (c.batchMode ? " show" : "") + '">' +
       '<span class="coll-batch-count">已选 ' + n + ' 项</span>' +
-      '<button class="mini-btn" id="coll-batch-tag">加标签</button>' +
-      '<button class="mini-btn" id="coll-batch-move">移动分类</button>' +
-      '<button class="mini-btn" id="coll-batch-status">标记状态</button>' +
-      '<button class="mini-btn danger" id="coll-batch-del">删除</button>' +
+      '<button class="mini-btn" id="coll-batch-tag"' + (n ? '' : ' disabled') + '>加标签</button>' +
+      '<button class="mini-btn" id="coll-batch-move"' + (n ? '' : ' disabled') + '>移动分类</button>' +
+      '<button class="mini-btn" id="coll-batch-status"' + (n ? '' : ' disabled') + '>标记状态</button>' +
+      '<button class="mini-btn danger" id="coll-batch-del"' + (n ? '' : ' disabled') + '>删除</button>' +
       '</div>';
+  }
+
+  function collectionFilterModalHtml() {
+    return '<div class="coll-filter-modal" id="coll-filter-modal">' +
+      '<div class="cfm-head"><span class="cfm-title">筛选</span><button class="cfm-close" id="coll-filter-close">✕</button></div>' +
+      '<div class="cfm-body" id="coll-filter-modal-body"></div>' +
+      '<div class="cfm-foot"><button class="cfm-reset" id="coll-reset">🧹 重置所有筛选条件</button></div>' +
+      '</div>';
+  }
+
+  function renderFilterModalBody() {
+    var c = collData();
+    var body = $("coll-filter-modal-body");
+    if (!body) return;
+    var cat = c.filterCat === "all" ? null : collCatOf(c.filterCat);
+    var subHtml = (cat && cat.subs && cat.subs.length)
+      ? '<div class="cfm-group"><div class="cfm-label">二级分类</div><div class="coll-fselect-btns" data-g="sub">' +
+        ['全部'].concat(cat.subs).map(function (s) { return '<button class="cfm-opt' + ((!c.filterSub && s === "全部") || c.filterSub === s ? " on" : "") + '" data-v="' + esc(s) + '">' + esc(s) + '</button>'; }).join("") +
+        '</div></div>'
+      : '<div class="cfm-group"><div class="cfm-label">二级分类</div><div class="cfm-sub-empty">选择具体分类后可进一步筛选二级分类</div></div>';
+    var html =
+      '<div class="cfm-group"><div class="cfm-label">分类</div><div class="coll-fselect-btns" data-g="cat">' +
+        '<button class="cfm-opt' + (c.filterCat === "all" ? " on" : "") + '" data-v="all">全部</button>' +
+        allCollCats().map(function (x) { return '<button class="cfm-opt' + (c.filterCat === x.key ? " on" : "") + '" data-v="' + esc(x.key) + '">' + esc(x.name) + '</button>'; }).join("") +
+      '</div></div>' +
+      subHtml +
+      '<div class="cfm-group"><div class="cfm-label">状态</div><div class="coll-fselect-btns" data-g="status">' +
+        '<button class="cfm-opt' + (!c.filterStatus ? " on" : "") + '" data-v="">全部</button>' +
+        COLL_STATUS.map(function (s) { return '<button class="cfm-opt' + (c.filterStatus === s.key ? " on" : "") + '" data-v="' + esc(s.key) + '">' + esc(s.name) + '</button>'; }).join("") +
+      '</div></div>' +
+      '<div class="cfm-group"><div class="cfm-label">标签</div><div class="coll-fselect-btns" data-g="tag">' +
+        '<button class="cfm-opt' + (!c.filterTag ? " on" : "") + '" data-v="">全部</button>' +
+        collectionAllTags().map(function (t) { return '<button class="cfm-opt' + (c.filterTag === t.name ? " on" : "") + '" data-v="' + esc(t.name) + '">' + esc(t.name) + '</button>'; }).join("") +
+      '</div></div>' +
+      '<div class="cfm-group"><div class="cfm-label">来源</div><div class="coll-fselect-btns" data-g="source">' +
+        '<button class="cfm-opt' + (!c.filterSource ? " on" : "") + '" data-v="">全部</button>' +
+        (function () { var used = {}; (c.items || []).forEach(function (it) { if (it.source) used[it.source] = 1; }); return Object.keys(used).sort().map(function (s) { return '<button class="cfm-opt' + (c.filterSource === s ? " on" : "") + '" data-v="' + esc(s) + '">' + esc(s) + '</button>'; }).join(""); })() +
+      '</div></div>' +
+      '<div class="cfm-group"><div class="cfm-label">排序</div><div class="coll-fselect-btns" data-g="sort">' +
+        '<button class="cfm-opt' + (c.sortBy === "time-desc" ? " on" : "") + '" data-v="time-desc">最新优先</button>' +
+        '<button class="cfm-opt' + (c.sortBy === "time-asc" ? " on" : "") + '" data-v="time-asc">最早优先</button>' +
+        '<button class="cfm-opt' + (c.sortBy === "name" ? " on" : "") + '" data-v="name">名称排序</button>' +
+      '</div></div>';
+    body.innerHTML = html;
+    body.querySelectorAll(".cfm-opt").forEach(function (b) {
+      b.onclick = function () {
+        var g = b.parentElement.getAttribute("data-g");
+        var v = b.getAttribute("data-v");
+        if (g === "cat") { c.filterCat = v; c.filterSub = null; }
+        else if (g === "sub") { c.filterSub = (v === "全部") ? null : v; }
+        else if (g === "status") { c.filterStatus = v; }
+        else if (g === "tag") { c.filterTag = v || null; }
+        else if (g === "source") { c.filterSource = v; }
+        else if (g === "sort") { c.sortBy = v; }
+        Store.save();
+        renderCollection();
+        renderFilterModalBody();
+        var m = $("coll-filter-modal"); if (m) m.classList.add("show");
+      };
+    });
   }
 
   function collectionTabsHtml() {
@@ -7658,7 +7712,7 @@ function defaultData() {
     var c = collData();
     var arr = collectionFilteredItems();
     if (!arr.length) {
-      return '<div class="coll-empty">暂无收藏<br><small>点击右上角「+ 新建收藏」添加第一个宝贝</small></div>';
+      return '<div class="coll-empty">暂无收藏<br><small>点击右上角「+ 新建收藏」添加第一个宝贝</small><button class="coll-empty-refresh" id="coll-empty-refresh">↻ 刷新 / 重置筛选</button></div>';
     }
     if (c.view === "list") {
       return '<div class="coll-listview">' + arr.map(function (it) { return collectionListItemHtml(it); }).join("") + '</div>';
@@ -7674,10 +7728,11 @@ function defaultData() {
     var c = collData();
     var checked = (c.selected || []).indexOf(it.id) >= 0 ? " checked" : "";
     var batchCheck = c.batchMode ? '<input type="checkbox" class="coll-batch-check" data-id="' + esc(it.id) + '"' + checked + '>' : "";
+    var statusBadge = (cat.key === "snack") ? '<div class="coll-status ' + esc(st.cls) + '">' + esc(st.name) + '</div>' : '';
     return '<div class="coll-card" data-id="' + esc(it.id) + '">' +
       batchCheck +
       '<div class="coll-card-head"><span>' + esc(cat.name) + '</span>' + (it.sub ? '<span class="coll-subtag">' + esc(it.sub) + '</span>' : '') + '</div>' +
-      '<div class="coll-status ' + esc(st.cls) + '">' + esc(st.name) + '</div>' +
+      statusBadge +
       (it.link ? '<a class="coll-link" data-link="' + esc(it.link) + '" title="打开链接" onclick="event.stopPropagation();openCollectionLink(this.getAttribute(\'data-link\'));return false;">链</a>' : '') +
       '<div class="coll-more" data-more="' + esc(it.id) + '">···</div>' +
       (it.img ? '<img class="coll-thumb" src="' + esc(it.img) + '" alt="">' : '<div class="coll-no-thumb">' + esc(it.name.slice(0, 8)) + '</div>') +
@@ -7694,6 +7749,7 @@ function defaultData() {
     var c = collData();
     var checked = (c.selected || []).indexOf(it.id) >= 0 ? " checked" : "";
     var batchCheck = c.batchMode ? '<input type="checkbox" class="coll-batch-check" data-id="' + esc(it.id) + '"' + checked + '>' : "";
+    var statusBadge = (cat.key === "snack") ? '<div class="coll-status ' + esc(st.cls) + '">' + esc(st.name) + '</div>' : '';
     return '<div class="coll-lrow" data-id="' + esc(it.id) + '">' +
       batchCheck +
       (it.img ? '<img class="coll-lthumb" src="' + esc(it.img) + '" alt="">' : '<div class="coll-lthumb coll-lplaceholder">' + esc(cat.name.slice(0, 1)) + '</div>') +
@@ -7703,7 +7759,7 @@ function defaultData() {
         '<div class="coll-ltags">' + tags.map(function (t) { return '<span class="coll-tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; }).join("") + '</div>' +
       '</div>' +
       '<div class="coll-lside">' +
-        '<div class="coll-status ' + esc(st.cls) + '">' + esc(st.name) + '</div>' +
+        statusBadge +
         (it.link ? '<a class="mini-btn" data-link="' + esc(it.link) + '" onclick="event.stopPropagation();openCollectionLink(this.getAttribute(\'data-link\'));return false;">打开</a>' : '') +
       '</div>' +
       '</div>';
@@ -7821,11 +7877,25 @@ function defaultData() {
     if (batchStatus) batchStatus.onclick = function () { openCollectionBatchStatus(); };
     var batchDel = $("coll-batch-del");
     if (batchDel) batchDel.onclick = function () { openCollectionBatchDelete(); };
+
+    var filterToggle = $("coll-filter-toggle");
+    if (filterToggle) filterToggle.onclick = function () { renderFilterModalBody(); var m = $("coll-filter-modal"); if (m) m.classList.add("show"); };
+    var filterClose = $("coll-filter-close");
+    if (filterClose) filterClose.onclick = function () { var m = $("coll-filter-modal"); if (m) m.classList.remove("show"); };
+    var filterReset = $("coll-reset");
+    if (filterReset) filterReset.onclick = function () { resetCollectionFilters(); var q = $("coll-q"); if (q) q.value = ""; renderCollection(); renderFilterModalBody(); var m = $("coll-filter-modal"); if (m) m.classList.add("show"); };
+    var filterModal = $("coll-filter-modal");
+    if (filterModal) filterModal.onclick = function (e) { if (e.target === this) this.classList.remove("show"); };
+    var batchCancel = $("coll-batch-cancel");
+    if (batchCancel) batchCancel.onclick = function () { toggleCollectionBatch(); };
+    var emptyRefresh = $("coll-empty-refresh");
+    if (emptyRefresh) emptyRefresh.onclick = function () { resetCollectionFilters(); var q = $("coll-q"); if (q) q.value = ""; renderCollection(); };
+    bindPullRefresh(body);
   }
 
   function renderCollection() {
     var body = $("lc-collection-body"); if (!body) return;
-    body.innerHTML = collectionToolbarHtml() + collectionTabsHtml() + collectionSubnavHtml() + '<div id="coll-items">' + collectionItemsHtml() + '</div>';
+    body.innerHTML = collectionToolbarHtml() + collectionTabsHtml() + collectionBatchBannerHtml() + '<div id="coll-items">' + collectionItemsHtml() + '</div>' + collectionBatchBarHtml() + collectionFilterModalHtml();
     bindCollectionHandlers();
   }
   function renderCollectionItems() {
@@ -8154,6 +8224,42 @@ function defaultData() {
     renderLifeMain();
   }
 
+  function resetCollectionFilters() {
+    var c = collData();
+    c.q = ""; c.filterStatus = ""; c.filterTag = null; c.filterSource = ""; c.filterSub = null;
+  }
+
+  function bindPullRefresh(body) {
+    if (body._pullBound) return;
+    body._pullBound = true;
+    if (!('ontouchstart' in window) && !(navigator.maxTouchPoints > 0)) return;
+    var startY = 0, pulling = false, hint = null, parent = body.parentNode;
+    body.addEventListener('touchstart', function (e) {
+      if (window.scrollY <= 0 && body.scrollTop <= 0) { startY = e.touches[0].clientY; pulling = true; }
+      else pulling = false;
+    }, { passive: true });
+    body.addEventListener('touchmove', function (e) {
+      if (!pulling) return;
+      var dy = e.touches[0].clientY - startY;
+      if (dy > 0 && window.scrollY <= 0) {
+        if (!hint) { hint = document.createElement('div'); hint.className = 'coll-pull-hint'; if (parent) parent.insertBefore(hint, body); }
+        var p = Math.min(dy, 90);
+        hint.style.height = p + 'px';
+        hint.textContent = dy > 60 ? '↑ 松手刷新' : '↓ 下拉刷新';
+      }
+    }, { passive: true });
+    body.addEventListener('touchend', function () {
+      if (hint) {
+        var h = parseInt(hint.style.height) || 0;
+        hint.style.height = '0';
+        if (h > 60) { resetCollectionFilters(); var q = $("coll-q"); if (q) q.value = ""; renderLifeMain(); toast('已刷新'); }
+        var hid = hint; hint = null;
+        setTimeout(function () { if (hid && hid.parentNode) hid.parentNode.removeChild(hid); }, 260);
+      }
+      pulling = false;
+    });
+  }
+
   function toggleCollectionSelect(id, forceChecked) {
     var c = collData();
     var sel = c.selected || [];
@@ -8169,15 +8275,14 @@ function defaultData() {
   function updateCollectionBatchBar() {
     var c = collData();
     var bar = $("coll-batch-bar");
-    var count = $("coll-batch-count");
     if (!bar) return;
     var n = (c.selected || []).length;
-    if (c.batchMode && n > 0) {
-      bar.classList.add("show");
-      if (count) count.textContent = "已选 " + n + " 项";
-    } else {
-      bar.classList.remove("show");
-    }
+    bar.classList.toggle("show", !!c.batchMode);
+    var count = $("coll-batch-count"); if (count) count.textContent = "已选 " + n + " 项";
+    var bn = $("coll-batch-n"); if (bn) bn.textContent = n;
+    ["coll-batch-tag", "coll-batch-move", "coll-batch-status", "coll-batch-del"].forEach(function (id) {
+      var b = $(id); if (b) b.disabled = (n === 0);
+    });
   }
 
   function getSelectedCollectionIds() {
@@ -8258,7 +8363,7 @@ function defaultData() {
         if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
         var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
         cv.getContext("2d").drawImage(img, 0, 0, w, h);
-        try { cb(cv.toDataURL("image/jpeg", 0.72)); } catch (e) { cb(rd.result); }
+        try { var data = cv.toDataURL("image/jpeg", 0.72); if (!data || data.indexOf("data:image") !== 0) throw new Error("compress-empty"); cb(data); } catch (e) { cb(rd.result); }
       };
       img.onerror = function () { cb(rd.result); };
       img.src = rd.result;
@@ -8336,25 +8441,6 @@ function defaultData() {
     applyGlass();
     applyAllRegionBgs();
   }
-  /* ===== 转换工具后台任务消息桥接（iframe → 外壳全局提示） ===== */
-  function wbConvToast(msg, done){
-    var t = document.getElementById('wb-conv-toast');
-    if(!t){ t=document.createElement('div'); t.id='wb-conv-toast';
-      t.style.cssText='position:fixed;right:16px;bottom:16px;z-index:320;max-width:330px;background:#2e5a47;color:#fff;padding:13px 16px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.28);cursor:pointer;animation:navOverlayIn .25s ease;font-size:13.5px;line-height:1.55;white-space:pre-line;';
-      document.body.appendChild(t); }
-    t.textContent = msg;
-    clearTimeout(window.__wbConvToastTimer);
-    if(done){ t.onclick=function(){ try{t.remove();}catch(_){} try{ switchTab('life'); navToLife('pdftool'); if(_navSheetOpen) closeNavSheet(); }catch(e){} };
-      window.__wbConvToastTimer=setTimeout(function(){ try{t.remove();}catch(_){} }, 12000); }
-    else { t.onclick=null; window.__wbConvToastTimer=setTimeout(function(){ try{t.remove();}catch(_){} }, 6000); }
-  }
-  window.addEventListener('message', function(ev){
-    var d = ev.data; if(!d || !d.type) return;
-    if(d.type==='wb-conv-start'){ window.__wbConvRunning = d.name || 'PDF 转换'; wbConvToast('转换进行中：'+window.__wbConvRunning+'，可放心去别的界面，完成后会提醒你～', false); }
-    else if(d.type==='wb-conv-done'){ window.__wbConvRunning=null; wbConvToast('✅ '+(d.name||'文件')+' 转换完成！\n点击此处前往转换工具下载 ›', true); }
-    else if(d.type==='wb-conv-fail'){ window.__wbConvRunning=null; }
-  });
-
   function openHelp() {
     var d = Store.data || {};
     var ent = d.ent || {};
@@ -8476,6 +8562,8 @@ function defaultData() {
     $("set-icon").onchange = function () { Store.data.settings.iconStyle = this.value; Store.save(); renderBottomNav(); };
     /* 2026-08-06：界面字体已移除「方正小标宋简」选项，旧数据若仍存 xbsong 则迁移回 宋体(song) */
     if (Store.data.settings.fontStyle === "xbsong") { Store.data.settings.fontStyle = "song"; Store.save(); }
+    /* 2026-08-09：移除「楷体」选项，旧数据若仍存 kai 则迁移回 宋体(song) */
+    if (Store.data.settings.fontStyle === "kai") { Store.data.settings.fontStyle = "song"; Store.save(); }
     $("set-font").value = Store.data.settings.fontStyle || "song";
     $("set-font").onchange = function () { Store.data.settings.fontStyle = this.value; Store.save(); applyFont(); };
     $("set-globalbg").onclick = function () { openBgPicker(function (r) { Store.data.settings.globalBg = r; Store.save(); applyBg(document.body, r); applyAllRegionBgs(); applyGlass(); }, { current: Store.data.settings.globalBg, title: "全局底图背景" }); };
@@ -8614,27 +8702,7 @@ function defaultData() {
       if (!sl.dataset.pctBound) { sl.dataset.pctBound = "1"; sl.addEventListener('input', up); }
       up();
     });
-    /* 手机字体：跟随手机字体（推荐，手机不下载大字体）/ 使用打包字体 二选一 pill */
-    function syncMobileFontPills() {
-      var v = (Store.data.settings.mobileUseSystemFont === undefined) ? true : !!Store.data.settings.mobileUseSystemFont;
-      document.querySelectorAll(".mobilefont-pill").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-mf") === (v ? "system" : "custom"));
-      });
-    }
-    syncMobileFontPills();
-    document.querySelectorAll(".mobilefont-pill").forEach(function (b) {
-      b.onclick = function () {
-        var wantSystem = this.getAttribute("data-mf") === "system";
-        Store.data.settings.mobileUseSystemFont = wantSystem;
-        Store.save(); applyFont(); syncMobileFontPills();
-      };
-    });
-    /* 首页/娱乐/生活区 "选项卡颜色"：调 openBgPicker 并写入对应 settings 字段 */
-    $("ent-color") && ($("ent-color").onclick = function () {
-      openBgPicker(function (r) {
-        Store.data.settings.entBarColor = r; Store.save(); applyEntColor();
-      }, { current: Store.data.settings.entBarColor, title: "娱乐区·选项卡样式", allowGlass: true, noImage: true });
-    });
+    /* 娱乐区·选项卡样式取色按钮的绑定已移至娱乐区初始化处（见下方 娱乐 段落），此处不再重复 */
     /* 首页模块排版 */
     $("set-hmorder").onclick = openHomeModuleOrder;
     document.querySelectorAll(".set-tab").forEach(function (cb) {
@@ -9478,6 +9546,12 @@ function defaultData() {
     console.log("[DBG] after subs bind, n-add el:", !!$("n-add"));
     $("n-add").onclick = function () { showNovelForm(null); };
     $("n-tag-manage-top").onclick = showTagManager;
+    /* 娱乐区·选项卡样式取色（修复：原先误绑在 renderSettings，娱乐区直接点击无效） */
+    $("ent-color").onclick = function () {
+      openBgPicker(function (r) {
+        Store.data.settings.entBarColor = r; Store.save(); applyEntColor();
+      }, { current: Store.data.settings.entBarColor, title: "娱乐区·选项卡样式", allowGlass: true, noImage: true });
+    };
     $("novel-search").addEventListener("input", function () { state.entSearch = this.value; renderEntList(); });
     $("novel-list").addEventListener("click", onListClick);
     $("insp-add").onclick = function () { showInspForm(null); };

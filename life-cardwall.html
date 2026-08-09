@@ -28,7 +28,7 @@
     border-radius:14px;padding:9px 12px;}
   .pc-tip b{color:var(--rose-d);}
 
-  .drop{border:2px dashed var(--rose);border-radius:18px;padding:26px;text-align:center;color:var(--rose-d);
+  .drop{display:block;width:100%;border:2px dashed var(--rose);border-radius:18px;padding:26px;text-align:center;color:var(--rose-d);
     font-size:14px;cursor:pointer;transition:.18s;background:linear-gradient(180deg,#fffdfc,#fdf3f6);}
   .drop:hover,.drop.over{border-color:var(--rose-d);background:var(--rose-l);}
   .drop .big{font-size:15px;font-weight:700;}
@@ -79,32 +79,17 @@
   .modal .mbar button{border:0;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
   .modal .fs{background:var(--gold);color:#fff;}
   .modal .close{background:rgba(255,255,255,.9);color:var(--rose-d);}
-  .modal .rot{background:rgba(243,228,234,.92);color:var(--rose-d);}
-  .modal .save{background:linear-gradient(135deg,var(--rose),var(--rose-d));color:#fff;}
+  .modal .rot, .modal .sound{background:rgba(243,228,234,.92);color:var(--rose-d);}
   .modal .mbar button:disabled{opacity:.55;cursor:not-allowed;}
-  /* 录制进度 */
-  .recbar{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.65);color:#fff;padding:18px 24px;border-radius:18px;text-align:center;z-index:55;display:none;backdrop-filter:blur(6px);min-width:220px;}
-  .recbar.show{display:block;}
-  .recbar .t1{font-size:15px;font-weight:700;margin-bottom:6px;}
-  .recbar .t2{font-size:12px;opacity:.85;}
 </style>
 </head>
 <body>
-<div id="fileWarn" style="display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a5a1a;border-radius:14px;padding:12px 14px;margin:0 0 14px;font-size:13px;line-height:1.7;">
-  ⚠️ 检测到你是<strong>直接双击</strong>打开本页（地址以 <code>file://</code> 开头）。浏览器会<strong>禁用视频存储（IndexedDB）</strong>，导致动态卡面无法保存。<br>
-  👉 请改用：双击同目录里的 <strong>start-workbench.bat</strong>，它会用 <code>http://localhost</code> 打开，动态卡面即可正常导入与欣赏。
-</div>
-<script>if(location.protocol==='file:'){var w=document.getElementById('fileWarn');if(w)w.style.display='block';}</script>
 <div class="wrap">
   <div class="topbar">
-    <div class="avatar">💌</div>
     <div class="titles">
       <h1>动态卡面</h1>
-      <p>未定事件簿 · 把心动的动态卡面留在电脑上慢慢欣赏</p>
     </div>
   </div>
-
-  <div class="pc-tip">💡 <b>建议在电脑端使用</b>（手机端无需安装此模块）。视频只存在你这台电脑的浏览器里，<b>不上传任何服务器、也不占手机空间</b>；配合「清理缓存」随时释放空间。</div>
 
   <label class="drop" id="drop">
     <div class="big">＋ 选择或拖入 MP4 视频（可多选）</div>
@@ -132,19 +117,15 @@
   <div class="modal" id="modal">
   <div class="hint">移动鼠标显示按钮 · 按 Esc 或点击空白退出 · 点击画面暂停/播放</div>
   <div class="stage">
-    <video id="player" playsinline loop muted></video>
+    <video id="player" playsinline loop></video>
   </div>
   <div class="mbar">
     <button class="rot" id="rotLeftBtn" title="左转 90°">↺ 左转</button>
     <button class="rot" id="rotRightBtn" title="右转 90°">↻ 右转</button>
     <button class="rot" id="rotResetBtn" title="还原">↩ 还原</button>
-    <button class="save" id="saveBtn" title="把当前旋转角度永久写进新视频并下载">💾 永久转正</button>
+    <button class="sound" id="muteBtn" title="开关声音（循环播放时可临时静音）">声音 开</button>
     <button class="fs" id="fsBtn">⛶ 全屏</button>
     <button class="close" id="closeBtn">关闭</button>
-  </div>
-  <div class="recbar" id="recbar">
-    <div class="t1">正在录制转正视频…</div>
-    <div class="t2" id="recText">请保持页面在前台，不要最小化</div>
   </div>
 </div>
 
@@ -247,7 +228,7 @@
   }
 
   /* ---------- 播放（壁纸级全屏） ---------- */
-  var curId=null, curUrl=null, curRot=0; // 0/90/180/270
+  var curId=null, curUrl=null, curRot=0, soundOn=true; // 0/90/180/270
   function play(id){
     var v=videos.filter(function(x){return x.id===id;})[0]; if(!v) return;
     curId=id; curRot=0; applyRot();
@@ -255,11 +236,23 @@
     if(curUrl){ try{URL.revokeObjectURL(curUrl);}catch(e){} }
     curUrl=URL.createObjectURL(v.blob);
     player.src=curUrl;
+    player.muted=false; /* 全屏播放需要声音（之前为壁纸模式误设为静音） */
+    soundOn=true; var mb=$("muteBtn"); if(mb) mb.textContent="声音 开"; /* 每次播放重置声音开关 */
     $("modal").classList.add("show");
+    /* 竖屏视频（手机录屏）自动旋转 90° 横屏铺满，避免拉伸变形 */
+    player.onloadedmetadata=function(){
+      if(player.videoHeight>player.videoWidth){ curRot=90; applyRot(); }
+    };
     player.play().catch(function(){});
     goFullscreen();
   }
-  function applyRot(){ $("player").style.transform="rotate("+curRot+"deg)"; }
+  function applyRot(){
+    var p=$("player");
+    p.style.transform="rotate("+curRot+"deg)";
+    /* 旋转 90/270° 时宽高互换，确保铺满全屏不变形 */
+    if(curRot%180!==0){ p.style.width="100vh"; p.style.height="100vw"; }
+    else { p.style.width="100%"; p.style.height="100%"; }
+  }
   function rotLeft(){ curRot=(curRot-90+360)%360; applyRot(); }
   function rotRight(){ curRot=(curRot+90)%360; applyRot(); }
   function rotReset(){ curRot=0; applyRot(); }
@@ -286,93 +279,12 @@
   $("modal").addEventListener("click",function(e){ if(e.target===this) $("closeBtn").click(); });
   document.addEventListener("keydown",function(e){ if(e.key==="Escape" && $("modal").classList.contains("show")) $("closeBtn").click(); });
 
-  /* ---------- 永久转正并下载 ---------- */
-  function downloadBlob(blob,name){
-    var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name;
-    document.body.appendChild(a); a.click();
-    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
-  }
-  $("saveBtn").onclick=function(){
-    var v=videos.filter(function(x){return x.id===curId;})[0]; if(!v){ alert("请先播放一个视频"); return; }
-    if(curRot===0){ alert("当前没有旋转，无需永久转正～先用「左转/右转」把它转到正的方向。"); return; }
-    var player=$("player"); player.pause();
-    var recbar=$("recbar"), recText=$("recText"); recbar.classList.add("show"); recText.textContent="准备中…";
-    setTimeout(function(){ doRecord(v,player,recbar,recText); },100);
+  /* ---------- 声音开关（循环播放时可临时静音） ---------- */
+  $("muteBtn").onclick=function(){
+    soundOn=!soundOn;
+    $("player").muted=!soundOn;
+    $("muteBtn").textContent = soundOn ? "声音 开" : "声音 关";
   };
-  async function doRecord(v,player,recbar,recText){
-    var srcVideo=null, audioCtx=null, recorder=null, finished=false;
-    try{
-      srcVideo=document.createElement("video");
-      srcVideo.src=curUrl; srcVideo.muted=true; srcVideo.playsInline=true; srcVideo.loop=false;
-      await new Promise(function(res,rej){
-        srcVideo.onloadedmetadata=function(){ res(); };
-        srcVideo.onerror=function(e){ rej(new Error("加载视频失败")); };
-        srcVideo.load();
-      });
-      var w=srcVideo.videoWidth||1280, h=srcVideo.videoHeight||720;
-      var swap=curRot%180!==0;
-      var canvas=document.createElement("canvas");
-      canvas.width=swap?h:w; canvas.height=swap?w:h;
-      var ctx=canvas.getContext("2d");
-      var stream=canvas.captureStream(30);
-      try{
-        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        var audioSrc=audioCtx.createMediaElementSource(srcVideo);
-        var dest=audioCtx.createMediaStreamDestination();
-        audioSrc.connect(dest);
-        // audioSrc.connect(audioCtx.destination); // 录制时不外放，避免干扰
-        if(dest.stream.getAudioTracks().length) dest.stream.getAudioTracks().forEach(function(t){ stream.addTrack(t); });
-      }catch(ae){ /* 忽略音频错误，至少能录画面 */ }
-      var mime="video/webm;codecs=vp9";
-      if(!MediaRecorder.isTypeSupported(mime)) mime="video/webm;codecs=vp8";
-      if(!MediaRecorder.isTypeSupported(mime)) mime="video/webm";
-      if(!MediaRecorder.isTypeSupported(mime)) throw new Error("浏览器不支持视频录制，请用 Chrome/Edge 最新版");
-      recorder=new MediaRecorder(stream,{mimeType:mime});
-      var chunks=[];
-      recorder.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
-      recorder.onerror=function(e){ if(finished) return; finished=true; recbar.classList.remove("show"); alert("录制出错："+e.message); player.play().catch(function(){}); };
-      var startTime=0;
-      function drawFrame(){
-        ctx.save();
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.translate(canvas.width/2,canvas.height/2);
-        ctx.rotate(curRot*Math.PI/180);
-        ctx.drawImage(srcVideo,-w/2,-h/2);
-        ctx.restore();
-      }
-      srcVideo.onplay=function(){
-        startTime=Date.now(); recorder.start(200);
-        function loop(){
-          if(srcVideo.paused || srcVideo.ended || finished) return;
-          drawFrame();
-          var elapsed=Math.floor((Date.now()-startTime)/1000);
-          recText.textContent="已录制 "+elapsed+" 秒 · 共 "+Math.floor(srcVideo.duration||0)+" 秒 · 请保持页面在前台";
-          if(srcVideo.requestVideoFrameCallback) srcVideo.requestVideoFrameCallback(loop);
-          else requestAnimationFrame(loop);
-        }
-        if(srcVideo.requestVideoFrameCallback) srcVideo.requestVideoFrameCallback(loop);
-        else requestAnimationFrame(loop);
-      };
-      recorder.onstop=function(){
-        if(finished) return; finished=true;
-        recbar.classList.remove("show");
-        var blob=new Blob(chunks,{type:mime.split(";")[0]});
-        var ext=mime.indexOf("webm")>=0?".webm":".mp4";
-        var name=v.name.replace(/\.mp4$/i,"")+"_转正"+ext;
-        downloadBlob(blob,name);
-        if(audioCtx && audioCtx.state!=="closed") audioCtx.close().catch(function(){});
-        player.play().catch(function(){});
-      };
-      await srcVideo.play();
-      srcVideo.onended=function(){ if(recorder.state!=="inactive") recorder.stop(); };
-    }catch(err){
-      if(finished) return; finished=true;
-      recbar.classList.remove("show");
-      alert("永久转正失败："+(err&&err.message?err.message:err));
-      if(audioCtx && audioCtx.state!=="closed") audioCtx.close().catch(function(){});
-      player.play().catch(function(){});
-    }
-  }
 
   /* ---------- 删除 / 清空 ---------- */
   async function removeOne(id){
