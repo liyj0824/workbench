@@ -81,6 +81,28 @@
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.className = ""; }, 1800);
   }
+  /* 学习区模块标题：超长时自动按比例缩小字号，强制保持单行横排 */
+  function fitModuleName() {
+    var el = $("module-name"); if (!el) return;
+    el.style.fontSize = "";
+    var head = el.parentElement; if (!head) return;
+    var dot = $("module-dot");
+    var acts = head.querySelector(".mod-head-acts");
+    var headStyle = getComputedStyle(head);
+    var padLeft = parseFloat(headStyle.paddingLeft) || 0;
+    var padRight = parseFloat(headStyle.paddingRight) || 0;
+    var gap = parseFloat(headStyle.gap) || 9;
+    var reserved = padLeft + padRight + (dot && dot.offsetWidth ? dot.offsetWidth + gap : 0);
+    if (acts && acts.offsetWidth) reserved += acts.offsetWidth + gap;
+    var available = head.clientWidth - reserved;
+    if (available <= 0) return;
+    var w = el.scrollWidth;
+    if (w <= available) return;
+    var base = parseFloat(getComputedStyle(el).fontSize);
+    var ratio = available / w;
+    var next = Math.max(11, Math.floor(base * ratio * 0.96));
+    el.style.fontSize = next + "px";
+  }
 
   /* ============ 图标 ============ */
   var ICONS = {
@@ -1589,7 +1611,19 @@ function defaultData() {
   /* ============ 标签控件 ============ */
   function createTagControl(container, pool, selected, opts) {
     opts = opts || {};
+    /* 移动端批量输入：保留输入框里已键入的草稿，重渲染时不丢失 */
+    var oldVal = "";
+    var oldInp = container.querySelector(".tag-batch-input");
+    if (oldInp) oldVal = oldInp.value;
     container.innerHTML = "";
+    container._tagPool = pool;
+    container._tagSelected = selected;
+    container._tagOpts = opts;
+    /* 批量模式：触屏 + 小屏自动启用；PC 端保持回车添加 */
+    var isTouchDevice = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    var batchMode = opts.batchMode === true || (opts.batchMode !== false && isTouchDevice && window.matchMedia && window.matchMedia("(max-width: 600px)").matches);
+    container.classList.toggle("tag-batch-mode", batchMode);
+
     var selWrap = document.createElement("div"); selWrap.className = "tag-sel";
     selected.forEach(function (t) {
       var p = document.createElement("span"); p.className = "tagpill"; p.textContent = t;
@@ -1600,21 +1634,36 @@ function defaultData() {
     container.appendChild(selWrap);
     var row = document.createElement("div"); row.className = "tag-add-row";
     var inp = document.createElement("input");
+    if (batchMode) inp.className = "tag-batch-input";
     var ph = opts.placeholder || "输入标签";
-    if (ph.indexOf("回车存标签") >= 0) { /* 已是新文案，保留 */ }
-    else if (ph.indexOf("回车或添加") >= 0) ph = ph.replace("回车或添加", "回车存标签·空回车跳走");
-    else ph = ph + "（回车存标签·空回车跳走）";
+    if (batchMode) {
+      if (ph.indexOf("逗号/空格") < 0 && ph.indexOf("可用逗号") < 0) ph = "多个标签可用逗号/空格分隔";
+    } else {
+      if (ph.indexOf("回车存标签") >= 0) { /* 已是新文案，保留 */ }
+      else if (ph.indexOf("回车或添加") >= 0) ph = ph.replace("回车或添加", "回车存标签·空回车跳走");
+      else ph = ph + "（回车存标签·空回车跳走）";
+    }
     inp.placeholder = ph;
-    var btn = document.createElement("button"); btn.className = "mini-btn"; btn.textContent = "添加";
+    if (batchMode && oldVal) inp.value = oldVal;
     function add() { var val = inp.value.trim(); if (!val) return; if (selected.indexOf(val) < 0) selected.push(val); if (pool.indexOf(val) < 0) pool.push(val); inp.value = ""; Store.save(); createTagControl(container, pool, selected, opts); var ni = container.querySelector(".tag-add-row input"); if (ni) ni.focus(); }
-    btn.onclick = add;
-    inp.addEventListener("keydown", function (e) {
-      if (e.isComposing || e.keyCode === 229) return;
-      if (e.key !== "Enter") return;
-      if (inp.value.trim()) { e.preventDefault(); add(); }            // 有字→存标签 + 留原地（继续录下一条）
-      else { e.preventDefault(); focusNextAfter(container); }         // 空字→跳过整个标签控件，跳到下一个字段
-    });
-    row.appendChild(inp); row.appendChild(btn); container.appendChild(row);
+    if (batchMode) {
+      /* 移动端：输入框只是普通文本，回车收起键盘 */
+      inp.addEventListener("keydown", function (e) {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === "Enter") { e.preventDefault(); inp.blur(); }
+      });
+    } else {
+      var btn = document.createElement("button"); btn.className = "mini-btn"; btn.textContent = "添加";
+      btn.onclick = add;
+      inp.addEventListener("keydown", function (e) {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key !== "Enter") return;
+        if (inp.value.trim()) { e.preventDefault(); add(); }            // 有字→存标签 + 留原地（继续录下一条）
+        else { e.preventDefault(); focusNextAfter(container); }         // 空字→跳过整个标签控件，跳到下一个字段
+      });
+      row.appendChild(btn);
+    }
+    row.appendChild(inp); container.appendChild(row);
     if (pool.length) {
       var cand = document.createElement("div"); cand.className = "tag-sel"; cand.style.marginTop = "6px";
       /* 标题行 */
@@ -1665,6 +1714,25 @@ function defaultData() {
       });
       container.appendChild(cand);
     }
+  }
+  /* 移动端批量标签：总保存/提交前解析输入框里的文本，按中英文逗号或空格拆分、去重 */
+  function flushPendingTags() {
+    document.querySelectorAll(".tag-batch-input").forEach(function (inp) {
+      var raw = (inp.value || "").trim();
+      if (!raw) return;
+      var container = inp.closest(".tagctrl");
+      if (!container) return;
+      var pool = container._tagPool;
+      var selected = container._tagSelected;
+      var opts = container._tagOpts || {};
+      if (!pool || !selected) return;
+      var parts = raw.split(/[,，\s]+/).map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+      parts.forEach(function (t) {
+        if (selected.indexOf(t) < 0) selected.push(t);
+        if (pool.indexOf(t) < 0) pool.push(t);
+      });
+      createTagControl(container, pool, selected, opts);
+    });
   }
 
   /* ============ 主页 ============ */
@@ -3570,7 +3638,7 @@ function defaultData() {
     var n = prompt("\u4FEE\u6539\u6A21\u5757\u540D\u79F0:", m.name);
     if (!n || !(n = n.trim())) return;
     m.name = n; Store.save();
-    $("module-name").textContent = n; toast("\u5DF2\u4FEE\u6539");
+    $("module-name").textContent = n; fitModuleName(); toast("\u5DF2\u4FEE\u6539");
   }
   function deleteModule(ci, mi) {
     var m = Store.data.study.categories[ci].modules[mi];
@@ -3829,6 +3897,7 @@ function defaultData() {
     acts.appendChild(tagBtn);
     acts.appendChild(delBtnMod);
     head.appendChild(acts);
+    fitModuleName();
     /* 动态渲染阶段标签 */
     renderPhaseTabs();
     var cp = curPhase();
@@ -4288,6 +4357,7 @@ function defaultData() {
 
     /* 保存：收集所有字段值 */
     $("sf-save").onclick = function () {
+      flushPendingTags(); /* 移动端：先解析标签输入框里的批量文本 */
       var file = $("sf-photo") && $("sf-photo").files && $("sf-photo").files[0];
       function commit() {
         var obj = { id: it ? it.id : uid() };
@@ -4779,6 +4849,7 @@ function defaultData() {
     createTagControl($("nf-plot"), pool.plot, plot, { placeholder: "回车存标签·空回车跳走", noManage: true });
     createTagControl($("nf-author"), pool.author, author, { placeholder: "回车存标签·空回车跳走", noManage: true });
     $("nf-save").onclick = function () {
+      flushPendingTags(); /* 移动端：先解析标签输入框里的批量文本 */
       var obj = { id: n ? n.id : uid(), name: $("nf-name").value.trim(), perspective: per, progress: prog, charText: $("nf-char").value.trim(), plot: plot, author: author };
       if (n) { var i = Store.data.ent.novels.indexOf(n); Store.data.ent.novels[i] = obj; } else Store.data.ent.novels.unshift(obj);
       Store.save(); closeModal(); renderEntList(); toast("已保存");
@@ -9575,6 +9646,11 @@ function defaultData() {
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
+
+  /* 窗口大小变化时重新适配模块标题字号 */
+  window.addEventListener("resize", function () {
+    if (state.tab === "study") setTimeout(fitModuleName, 50);
+  });
 
   /* file:// 打开时 origin 为 null，ServiceWorker 相关 API 会直接抛 SecurityError，
      必须整体 try 包住，否则会在控制台报未捕获异常。 */

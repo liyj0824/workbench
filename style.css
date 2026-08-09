@@ -813,7 +813,7 @@ mark.hl-mask.masked {
 .phase.active { background: var(--study-color, var(--green-deep)); color: #fff; box-shadow: var(--clay-shadow-in); transform: scale(.96); }
 .phase-name-row { font-size: calc(1.000 * var(--font-size-base)); line-height: 1.4; text-align: center; }
 /* 2026-08-05：学习区取色器的"字体颜色"控件 → 模块名称 / 阶段文字 / +新建 / 快捷创建 统一用 --study-font-color（深绿/黑/白） */
-#module-name { color: var(--study-font-color, var(--ink)); }
+#module-name { color: var(--study-font-color, var(--ink)); white-space: nowrap; flex: 1 1 auto; min-width: 0; overflow: hidden; font-size: clamp(12px, 4.2vw, calc(1.333 * var(--font-size-base))); display: block; }
 .phase .phase-name-row { color: var(--study-font-color, var(--green-dark)); }
 .phase.active .phase-name-row { color: var(--study-font-color, #fff) !important; }
 #study-add, #study-quick { color: var(--study-font-color, #fff) !important; }
@@ -2049,7 +2049,28 @@ body.glass-on .life-card h3 {
 
 /* ===== 手机适配（参考华为 Mate 40 Pro，物理宽 75.5mm ≈ 392 CSS px） ===== */
 @media (max-width: 600px) {
-  #topbar { padding: 9px 12px; }
+  /* 手机端：状态栏沉浸式透明，内容直接顶天，只留安全区避让 */
+  #topbar {
+    height: auto; min-height: 48px;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+    background: transparent !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    color: #fff !important;
+    border-bottom: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,.45);
+    position: relative; z-index: 10;
+  }
+  #topbar::before {
+    content: "";
+    position: absolute; inset: 0; bottom: -20px;
+    background: linear-gradient(to bottom, rgba(0,0,0,.35) 0%, rgba(0,0,0,.12) 60%, transparent 100%);
+    pointer-events: none;
+    z-index: -1;
+  }
+  #top-title, #save-state { color: #fff !important; text-shadow: 0 1px 3px rgba(0,0,0,.45); }
+  #save-state.saved { color: #e8f5e9 !important; }
+  #save-state.saving { color: #fff9c4 !important; }
+  #save-state.error { color: #ffccbc !important; }
   #top-title { font-size: calc(1.067 * var(--font-size-base)); }
   #save-state { font-size: calc(0.733 * var(--font-size-base)); }
   .layout { gap: 0; }
