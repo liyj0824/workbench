@@ -611,13 +611,32 @@
     sel.innerHTML='<option value="">不填</option>'+(c.subs||[]).map(function(s){return '<option value="'+esc(s)+'">'+esc(s)+'</option>';}).join("");
   }
   $("f-cat").addEventListener("change", function(){ fillSubSelect(this.value); });
-  $("f-tag-input").addEventListener("keydown", function(e){
-    if(e.key==="Enter"||e.key===" "){ e.preventDefault(); addDraftTag(this.value); this.value=""; }
-  });
-  $("f-tag-input").addEventListener("blur", function(){ if(this.value.trim()){ addDraftTag(this.value); this.value=""; } });
+  var isMobileCC = window.matchMedia && window.matchMedia("(pointer: coarse)").matches && window.matchMedia && window.matchMedia("(max-width: 600px)").matches;
+  if (isMobileCC) {
+    /* 移动端：输入框只是普通文本，保存时统一按逗号/空格拆分 */
+    $("f-tag-input").placeholder = "多个标签可用逗号/空格分隔";
+    $("f-tag-input").addEventListener("keydown", function(e){
+      if (e.key === "Enter") { e.preventDefault(); this.blur(); }
+    });
+  } else {
+    /* PC端：保持回车/空格即时添加 */
+    $("f-tag-input").addEventListener("keydown", function(e){
+      if(e.key==="Enter"||e.key===" "){ e.preventDefault(); addDraftTag(this.value); this.value=""; }
+    });
+    $("f-tag-input").addEventListener("blur", function(){ if(this.value.trim()){ addDraftTag(this.value); this.value=""; } });
+  }
   function addDraftTag(v){
     v=v.trim(); if(!v) return;
     if(draftTags.indexOf(v)<0) draftTags.push(v);
+    renderDraftTags();
+  }
+  function parseDraftTagsFromInput(){
+    var raw = $("f-tag-input").value.trim();
+    if (!raw) return;
+    raw.split(/[,，\s]+/).map(function(s){ return s.trim(); }).filter(function(s){ return s; }).forEach(function(t){
+      if (draftTags.indexOf(t) < 0) draftTags.push(t);
+    });
+    $("f-tag-input").value = "";
     renderDraftTags();
   }
   function renderDraftTags(){
@@ -657,6 +676,7 @@
     setTimeout(function(){ $("f-name").focus(); }, 200);
   }
   $("btn-save").addEventListener("click", function(){
+    parseDraftTagsFromInput(); /* 移动端：保存前先把输入框里的批量文本拆成标签 */
     var name=$("f-name").value.trim();
     if(!name){ toast("请填写名称"); $("f-name").focus(); return; }
     var data={
