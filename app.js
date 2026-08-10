@@ -1349,11 +1349,15 @@ function defaultData() {
     var box = $("modal-box");
     box.className = "modal-box";
     if (cls) box.classList.add(cls);
-    box.innerHTML = '<div class="modal-xwrap"><button class="modal-x" id="modal-x" type="button" aria-label="关闭">✕</button></div>' + html;
+    // 若弹窗内部已有取消/确定/确认/完成等显式操作按钮，不再重复显示右上角 X（PRD 补充）
+    var hasActions = /<(button|a)\b[^>]*>[^<]*(?:取消|确定|确认|完成)[^<]*<\/\1>/i.test(html);
+    box.innerHTML = (hasActions ? "" : '<div class="modal-xwrap"><button class="modal-x" id="modal-x" type="button" aria-label="关闭">✕</button></div>') + html;
     $("modal").hidden = false;
     enableEnterToNext(box);
-    var mx = $("modal-x");
-    if (mx) mx.onclick = closeModal;
+    if (!hasActions) {
+      var mx = $("modal-x");
+      if (mx) mx.onclick = closeModal;
+    }
   }
   function focusNextFrom(el) {
     if (!el) return;
@@ -8417,7 +8421,7 @@ function defaultData() {
     var filterApply = $("coll-filter-apply");
     if (filterApply) filterApply.onclick = function () { var m = $("coll-filter-modal"); if (m) m.classList.remove("show"); applyFilter(); toast("已应用筛选"); };
     var filterReset = $("coll-reset");
-    if (filterReset) filterReset.onclick = function () { resetCollectionFilters(); Store.save(); renderFilterModalBody(); toast("已重置"); };
+    if (filterReset) filterReset.onclick = function () { resetCollectionFilters(); var q = $("coll-q"); if (q) q.value = ""; Store.save(); renderFilterModalBody(); toast("已重置"); };
     var filterModal = $("coll-filter-modal");
     if (filterModal) filterModal.onclick = function (e) { if (e.target === this) { this.classList.remove("show"); applyFilter(); } };
     var batchCancel = $("coll-batch-cancel");
@@ -8909,7 +8913,7 @@ function defaultData() {
 
   function resetCollectionFilters() {
     var c = collData();
-    c.q = ""; c.filterStatus = ""; c.filterTag = null; c.filterSource = ""; c.filterSub = null;
+    c.q = ""; c.filterCat = "all"; c.filterSub = null; c.filterStatus = ""; c.filterTag = null; c.filterSource = ""; c.sortBy = "time-desc";
   }
 
   /* 下拉刷新：仅在内容容器顶部（首屏且滚动条归零）才触发，避免与列表项左滑手势冲突（PRD 改版） */
