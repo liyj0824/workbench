@@ -1296,9 +1296,10 @@ function defaultData() {
   /* ============ 字体 ============ */
   var FONT_MAP = {
     /* 宋体：远程 Noto Serif SC（标准宋体），不打包 */
-    song:     '"Noto Serif SC","Songti SC","STSong","SimSun","宋体","Source Han Serif SC",serif',
-    fang:     'fs-fangsong, "Noto Serif SC","FangSong","STFangsong","仿宋",serif'
-    /* 注：nanxiyoumo (南西油墨宋) 已于 2026-08-05 按用户要求删除；2026-08-09 移除「楷体」选项及 fs-kaiti 字体 */
+    song:     '"Noto Serif SC","Songti SC","STSong","SimSun","宋体","Source Han Serif SC",serif'
+    /* 注：nanxiyoumo (南西油墨宋) 已于 2026-08-05 按用户要求删除；
+       2026-08-09 移除「楷体」选项及 fs-kaiti 字体；
+       2026-08-10 移除「仿宋」选项及 fs-fangsong 字体（诗词小句仍走 .home-quote 的 fs-nanxi 南西油墨宋） */
   };
   function isMobileLike() {
     try {
@@ -9075,7 +9076,7 @@ function defaultData() {
   /* ============ 底栏 ============ */
   function renderBottomNav() {
     var bar = $("bottombar"); bar.innerHTML = "";
-    var style = Store.data.settings.iconStyle;
+    var style = isMobileLike() ? "weiding" : (Store.data.settings.iconStyle || "weiding");
     var hidden = Store.data.settings.hiddenTabs || [];
     var tabs = [["home", "主页"], ["study", "学习"], ["ent", "娱乐"], ["life", "生活"], ["settings", "个性化"]];
     tabs.forEach(function (t) {
@@ -9236,12 +9237,21 @@ function defaultData() {
   }
 
   function renderSettings() {
-    $("set-icon").value = Store.data.settings.iconStyle;
-    $("set-icon").onchange = function () { Store.data.settings.iconStyle = this.value; Store.save(); renderBottomNav(); };
+    var iconSel = $("set-icon");
+    if (isMobileLike()) {
+      /* 手机端：界面图标只保留「未定事件簿」，隐藏油画睡莲/简笔小花选项（不覆盖桌面持久设置） */
+      iconSel.innerHTML = '<option value="weiding">未定事件簿</option>';
+      iconSel.value = "weiding";
+    } else {
+      iconSel.value = Store.data.settings.iconStyle;
+    }
+    iconSel.onchange = function () { Store.data.settings.iconStyle = this.value; Store.save(); renderBottomNav(); };
     /* 2026-08-06：界面字体已移除「方正小标宋简」选项，旧数据若仍存 xbsong 则迁移回 宋体(song) */
     if (Store.data.settings.fontStyle === "xbsong") { Store.data.settings.fontStyle = "song"; Store.save(); }
     /* 2026-08-09：移除「楷体」选项，旧数据若仍存 kai 则迁移回 宋体(song) */
     if (Store.data.settings.fontStyle === "kai") { Store.data.settings.fontStyle = "song"; Store.save(); }
+    /* 2026-08-10：移除「仿宋」选项，旧数据若仍存 fang 则迁移回 宋体(song) */
+    if (Store.data.settings.fontStyle === "fang") { Store.data.settings.fontStyle = "song"; Store.save(); }
     $("set-font").value = Store.data.settings.fontStyle || "song";
     $("set-font").onchange = function () { Store.data.settings.fontStyle = this.value; Store.save(); applyFont(); };
     $("set-globalbg").onclick = function () { openBgPicker(function (r) { Store.data.settings.globalBg = r; Store.save(); applyBg(document.body, r); applyAllRegionBgs(); applyGlass(); }, { current: Store.data.settings.globalBg, title: "全局底图背景" }); };

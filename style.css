@@ -1,9 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Long+Cang&display=swap');
-
 /* 用户预存的本机字体（清透工作台打包，PC 端加载；手机默认走系统字体不下载） */
-@font-face { font-family: "fs-xbsong";    src: url("fonts/xbsong.ttf")    format("truetype"); font-display: swap; font-weight: 400; font-style: normal; }
-@font-face { font-family: "fs-fangsong";  src: url("fonts/fangsong.ttf")  format("truetype"); font-display: swap; font-weight: 400; font-style: normal; }
-@font-face { font-family: "fs-nanxi";     src: url("fonts/nanxiyoumosong.woff2") format("woff2"); font-display: swap; font-weight: 400; font-style: normal; }   /* 2026-08-06：每日寄语中文诗词→南西油墨宋(子集化 1.87MB，仅诗句本体；缺字回退 fs-xbsong) */
+@font-face { font-family: "fs-nanxi";     src: url("fonts/nanxiyoumosong.woff2") format("woff2"); font-display: swap; font-weight: 400; font-style: normal; }   /* 2026-08-06：每日寄语中文诗词→南西油墨宋(子集化 1.87MB，仅诗句本体；缺字回退系统宋体) */
 @font-face { font-family: "Great Vibes"; src: url("fonts/greatvibes.woff2") format("woff2"); font-display: swap; font-weight: 400; font-style: normal; }   /* 2026-08-05 更正：每日寄语英文诗词用花体（拉丁子集，~42KB 已打包，国内离线可用） */
 /* 系统字体 fallback 栈（手机端开启"手机用系统字体"时使用，跟随手机自带字体） */
 :root { --sys-font-serif: "Noto Serif SC","Songti SC","STSong","SimSun","宋体","Source Han Serif SC",serif; }
@@ -265,7 +261,7 @@ body.glass-on .sub-tabs .sub.active {
 
 /* 主页 */
 .home-quote {
-  font-family: "fs-nanxi", "fs-xbsong", "Noto Serif SC", "Songti SC", serif; font-size: calc(1.867 * var(--font-size-base)); color: #fff;   /* 2026-08-06：中文诗词→南西油墨宋(子集化)；释义走 .home-quote-explain 的 --ui-font */
+  font-family: "fs-nanxi", "Noto Serif SC", "Songti SC", serif; font-size: calc(1.867 * var(--font-size-base)); color: #fff;   /* 2026-08-06：中文诗词→南西油墨宋(子集化)；释义走 .home-quote-explain 的 --ui-font */
   text-shadow: 0 1px 5px rgba(0,0,0,.45), 0 0 1px rgba(0,0,0,.4);
   text-align: center; padding: 34px 18px; line-height: 1.7; border-radius: var(--clay-radius);
   border: none; margin-bottom: 16px;
