@@ -1343,7 +1343,17 @@ function defaultData() {
   }
 
   /* ============ 弹窗 ============ */
-  function openModal(html, cls) { var box = $("modal-box"); box.className = "modal-box"; if (cls) box.classList.add(cls); box.innerHTML = html; $("modal").hidden = false; enableEnterToNext(box); }
+  /* 所有 openModal 弹窗统一在右上角挂「×」关闭按钮（手机端全屏弹窗无法点外部关闭，必须给显式关闭入口 —— PRD 补充 3） */
+  function openModal(html, cls) {
+    var box = $("modal-box");
+    box.className = "modal-box";
+    if (cls) box.classList.add(cls);
+    box.innerHTML = '<div class="modal-xwrap"><button class="modal-x" id="modal-x" type="button" aria-label="关闭">✕</button></div>' + html;
+    $("modal").hidden = false;
+    enableEnterToNext(box);
+    var mx = $("modal-x");
+    if (mx) mx.onclick = closeModal;
+  }
   function focusNextFrom(el) {
     if (!el) return;
     var skip = el.closest ? el.closest(".tag-add-row, .coll-taginput") : null;
@@ -4996,6 +5006,8 @@ function defaultData() {
     $("lc-bg").onclick = function () { openBgPicker(function (r) { Store.data.life.cardBg[key] = r; Store.save(); updateReceiptBgVar(); renderLifeMain(); }, { current: Store.data.life.cardBg[key], title: "卡片背景", noImage: true, allowGlass: true, fontColor: true, fontColorInit: (Store.data.settings.lifeFontColor || "green"), fontColorApply: function (v) { Store.data.settings.lifeFontColor = v; Store.save(); applyLifeFontColor(); } }); };
     $("lc-hide").onclick = function () { hideLifeFeature(key); };
     bindLifeHandlers(key);
+    /* 「新建收藏」FAB 仅限「生活 → 云收藏柜」子视图显示（PRD 补充） */
+    updateCollectionFab();
   }
   function lifeCardwallHtml() {
     return '<div class="cardwall-wrap">' +
@@ -7461,12 +7473,12 @@ function defaultData() {
 
   /* ============ 云收藏柜 ============ */
   var COLL_CATS = [
-    { key: "snack", name: "零食柜", subs: ["膨化/饼干", "糕点甜品", "半成品冷冻", "辣条卤味", "素食豆制品", "坚果炒货", "糖果巧克力"] },
+    { key: "snack", name: "零食", subs: ["膨化/饼干", "糕点甜品", "半成品冷冻", "辣条卤味", "素食豆制品", "坚果炒货", "糖果巧克力"] },
     { key: "recipe", name: "菜谱", subs: ["家常荤菜", "家常素菜", "汤羹煲类", "主食面点", "烘焙甜点", "快手早餐", "凉拌小菜", "饮品"] },
     { key: "office", name: "办公/效率", subs: ["效率工具", "办公好物", "学习资源"] },
-    { key: "media", name: "书影音推荐", subs: ["小说", "影视剧", "纪录片", "播客/音乐"] },
+    { key: "media", name: "书影音", subs: ["小说", "影视剧", "纪录片", "播客/音乐"] },
     { key: "food", name: "美食打卡", subs: ["火锅", "烧烤", "咖啡甜品", "地方菜", "小吃快餐"] },
-    { key: "travel", name: "旅行目的地", subs: ["自然风光", "城市漫步", "古镇村落", "海岛度假"] },
+    { key: "travel", name: "旅行", subs: ["自然风光", "城市漫步", "古镇村落", "海岛度假"] },
     { key: "life", name: "生活好物", subs: ["收纳整理", "厨房用品", "清洁工具", "装饰摆件", "床上用品"] },
     { key: "stationery", name: "文具手账", subs: ["笔类", "本子/纸张", "贴纸/胶带", "收纳", "手账工具"] },
     { key: "uncat", name: "未分类", subs: [] }
@@ -7481,17 +7493,84 @@ function defaultData() {
     var c = Store.data.life.collection;
     if (!c.customCats) c.customCats = [];
     if (!c.selected) c.selected = [];
+    /* 标签管理五区所需的覆盖表（分类改名/隐藏、二级分类覆盖、状态改名/自定义、来源清单） */
+    if (!c.catNames) c.catNames = {};
+    if (!c.catSubs) c.catSubs = {};
+    if (!c.hiddenCats) c.hiddenCats = [];
+    if (!c.statusNames) c.statusNames = {};
+    if (!c.customStatus) c.customStatus = [];
+    if (!c.hiddenStatus) c.hiddenStatus = [];
+    if (!c.sourceList) c.sourceList = COLL_SOURCES.slice();
+    if (!c.recent) c.recent = [];   // 全屏搜索页「最近搜索」
     return c;
   }
-  function allCollCats() { return COLL_CATS.concat(collData().customCats || []); }
+  /* ---- 分类 / 二级分类 / 状态 / 来源：均支持在「标签管理」中增改删，改动落在 collData() 的覆盖表里 ---- */
+  function allCollCats() {
+    var c = collData();
+    var hid = c.hiddenCats || [];
+    var names = c.catNames || {};
+    var subsOv = c.catSubs || {};
+    var base = COLL_CATS.filter(function (x) { return hid.indexOf(x.key) < 0; }).map(function (x) {
+      return { key: x.key, name: names[x.key] || x.name, subs: subsOv[x.key] || x.subs, builtin: true };
+    });
+    var custom = (c.customCats || []).filter(function (x) { return hid.indexOf(x.key) < 0; }).map(function (x) {
+      return { key: x.key, name: names[x.key] || x.name, subs: subsOv[x.key] || x.subs || [], builtin: false };
+    });
+    return base.concat(custom);
+  }
   function collCatOf(k) {
     var map = {};
     allCollCats().forEach(function (c) { map[c.key] = c; });
-    return map[k] || map.uncat;
+    return map[k] || map.uncat || { key: "uncat", name: "未分类", subs: [] };
+  }
+  function allCollStatus() {
+    var c = collData();
+    var hid = c.hiddenStatus || [];
+    var names = c.statusNames || {};
+    var base = COLL_STATUS.filter(function (s) { return hid.indexOf(s.key) < 0; }).map(function (s) {
+      return { key: s.key, name: names[s.key] || s.name, cls: s.cls, builtin: true };
+    });
+    var custom = (c.customStatus || []).map(function (s) {
+      return { key: s.key, name: names[s.key] || s.name, cls: s.cls || "coll-status-custom", builtin: false };
+    });
+    return base.concat(custom);
   }
   function collStatusOf(k) {
-    for (var i = 0; i < COLL_STATUS.length; i++) { if (COLL_STATUS[i].key === k) return COLL_STATUS[i]; }
-    return COLL_STATUS[0];
+    var arr = allCollStatus();
+    for (var i = 0; i < arr.length; i++) { if (arr[i].key === k) return arr[i]; }
+    return arr[0] || COLL_STATUS[0];
+  }
+  /* 来源平台：手动维护的清单 + 已被收藏使用过的来源（保证数据不丢） */
+  function allCollSources() {
+    var c = collData();
+    var list = (c.sourceList && c.sourceList.length) ? c.sourceList.slice() : COLL_SOURCES.slice();
+    (c.items || []).forEach(function (it) { if (it.source && list.indexOf(it.source) < 0) list.push(it.source); });
+    return list;
+  }
+  /* 筛选用：仅列出用户真实收藏过的来源，拼多多/小红书优先置顶，其余按使用频次降序 */
+  function usedCollSources() {
+    var cnt = {};
+    (collData().items || []).forEach(function (it) { if (it.source) cnt[it.source] = (cnt[it.source] || 0) + 1; });
+    var top = ["拼多多", "小红书"];
+    return Object.keys(cnt).sort(function (a, b) {
+      var ia = top.indexOf(a), ib = top.indexOf(b);
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      if (cnt[b] !== cnt[a]) return cnt[b] - cnt[a];
+      return a.localeCompare(b, "zh");
+    });
+  }
+  /* 当前是否为窄屏（手机端）：手机端强制列表视图、隐藏视图切换 */
+  function collIsMobile() { return window.innerWidth <= 640; }
+  /* 已启用的筛选条件数量（用于顶栏「筛选」按钮上的小红点计数） */
+  function collActiveFilterCount() {
+    var c = collData(), n = 0;
+    if (c.filterCat && c.filterCat !== "all") n++;
+    if (c.filterSub) n++;
+    if (c.filterStatus) n++;
+    if (c.filterTag) n++;
+    if (c.filterSource) n++;
+    if (c.sortBy && c.sortBy !== "time-desc") n++;
+    return n;
   }
 
   function seedCollectionItems() {
@@ -7561,7 +7640,7 @@ function defaultData() {
 
   function lifeCollectionHtml() {
     ensureCollectionSeeded();
-    return '<div id="lc-collection-body">' + collectionToolbarHtml() + collectionTabsHtml() + collectionBatchBannerHtml() + '<div id="coll-items">' + collectionItemsHtml() + '</div>' + collectionBatchBarHtml() + collectionFilterModalHtml() + '</div>';
+    return '<div id="lc-collection-body">' + collectionBodyHtml() + '</div>';
   }
 
   /* 收藏链接点击：小红书优先唤起 App，失败降级打开网页版 */
@@ -7591,21 +7670,68 @@ function defaultData() {
   /* 内联 onclick 在 IIFE 外访问，必须挂到 window */
   window.openCollectionLink = openCollectionLink;
 
+  /* 收藏柜主体：顶栏 → 分类胶囊 → 批量提示 → 列表 → 批量条 → 筛选弹窗 → 全屏搜索层
+     「新建收藏」FAB 不再内嵌于此，改由 mountCollectionFab() 挂到 body 根节点（PRD 补充 2） */
+  function collectionBodyHtml() {
+    return collectionToolbarHtml() + collectionTabsHtml() + collectionBatchBannerHtml() +
+      '<div id="coll-items">' + collectionItemsHtml() + '</div>' +
+      collectionBatchBarHtml() + collectionFilterModalHtml() + collectionSearchLayerHtml();
+  }
+
+  /* 顶部操作栏：[搜索框] | [标签管理] | [筛选] | [批量] | [卡片/列表切换]
+     搜索框在此仅作「入口」，点击后进入全屏沉浸式搜索页；手机端标签管理只显示 🏷️，视图切换隐藏 */
   function collectionToolbarHtml() {
     var c = collData();
-    return '<div class="coll-title-row">' +
-        '<div class="coll-title-actions">' +
-          '<button class="coll-tool-btn" id="coll-tagmgr">🏷 标签管理</button>' +
-          '<button class="coll-tool-btn coll-add-act" id="coll-add">＋ 新建收藏</button>' +
+    var fn = collActiveFilterCount();
+    return '<div class="coll-toolbar">' +
+        '<div class="coll-search coll-search-trigger" id="coll-search-trigger" role="button" tabindex="0">' +
+          '<span class="coll-sico">搜</span>' +
+          '<span class="coll-sq' + (c.q ? '' : ' ph') + '">' + esc(c.q || "搜索名称、备注、标签…") + '</span>' +
+          '<button class="coll-sclear' + (c.q ? '' : ' hide') + '" id="coll-q-clear" type="button">清空</button>' +
         '</div>' +
-      '</div>' +
-      '<div class="coll-toolbar">' +
-        '<div class="coll-search"><span class="coll-sico">搜</span><input type="text" id="coll-q" placeholder="搜索名称、备注、标签…" value="' + esc(c.q || "") + '" autocomplete="off" spellcheck="false"><button class="coll-sclear' + (c.q ? '' : ' hide') + '" id="coll-q-clear">清空</button></div>' +
         '<div class="coll-tool-actions">' +
-          '<button class="coll-tool-btn" id="coll-filter-toggle">筛选 ▾</button>' +
-          '<button class="coll-tool-btn' + (c.batchMode ? " on" : "") + '" id="coll-batch">' + (c.batchMode ? "退出批量" : "批量") + '</button>' +
-          '<button class="mini-btn' + (c.view === "list" ? " on" : "") + '" id="coll-view" title="切换视图">' + (c.view === "list" ? "卡片" : "列表") + '</button>' +
+          '<button class="coll-tool-btn coll-tagmgr-btn" id="coll-tagmgr" type="button" title="标签管理"><span class="ctm-txt">标签管理</span><span class="ctm-ico">🏷️</span></button>' +
+          '<button class="coll-tool-btn' + (fn ? " on" : "") + '" id="coll-filter-toggle" type="button">筛选' + (fn ? '<i class="coll-fdot">' + fn + '</i>' : '') + '</button>' +
+          '<button class="coll-tool-btn' + (c.batchMode ? " on" : "") + '" id="coll-batch" type="button">' + (c.batchMode ? "退出批量" : "批量") + '</button>' +
+          '<button class="mini-btn coll-view-btn' + (c.view === "list" ? " on" : "") + '" id="coll-view" type="button" title="切换视图">' + (c.view === "list" ? "卡片" : "列表") + '</button>' +
         '</div>' +
+      '</div>';
+  }
+
+  /* 底部悬浮「新建收藏」按钮：fixed 定位，毛玻璃胶囊 + 品牌渐变，不遮挡内容 */
+  function collectionFabHtml() {
+    return '<button class="coll-fab" id="coll-fab" type="button" aria-label="新建收藏"><span class="coll-fab-plus">＋</span><span class="coll-fab-txt">新建收藏</span></button>';
+  }
+  /* FAB 彻底脱离工作界面：挂载到 body 根节点，position:fixed 固定于屏幕底部正中（PRD 补充 2） */
+  function mountCollectionFab() {
+    var root = document.getElementById("coll-fab-root");
+    if (!root) { root = document.createElement("div"); root.id = "coll-fab-root"; (document.body || document.documentElement).appendChild(root); }
+    root.innerHTML = collectionFabHtml();
+    var fab = $("coll-fab");
+    if (fab) fab.onclick = function () { openCollectionEditor(null); };
+  }
+  function unmountCollectionFab() {
+    var root = document.getElementById("coll-fab-root");
+    if (root) root.innerHTML = "";
+  }
+  /* 「新建收藏」FAB 仅限「生活 → 云收藏柜」界面显示（PRD 补充）：
+     切换到主页/学习/娱乐/个性化等任何其它页面时彻底移除（不占布局） */
+  function updateCollectionFab() {
+    if (state.tab === "life" && state.lifeSel === "collection") mountCollectionFab();
+    else unmountCollectionFab();
+  }
+
+  /* 全屏沉浸式搜索层容器（内容由 renderCollSearchBody 动态填充） */
+  function collectionSearchLayerHtml() {
+    return '<div class="coll-search-layer" id="coll-search-layer">' +
+        '<div class="csl-head">' +
+          '<div class="csl-inputwrap"><span class="csl-ico">搜</span>' +
+            '<input type="text" id="csl-input" placeholder="搜索名称、备注、标签、来源…" autocomplete="off" spellcheck="false">' +
+            '<button class="csl-clear hide" id="csl-clear" type="button">✕</button>' +
+          '</div>' +
+          '<button class="csl-cancel" id="csl-cancel" type="button">取消</button>' +
+        '</div>' +
+        '<div class="csl-body" id="csl-body"></div>' +
       '</div>';
   }
 
@@ -7642,9 +7768,9 @@ function defaultData() {
 
   function collectionFilterModalHtml() {
     return '<div class="coll-filter-modal" id="coll-filter-modal">' +
-      '<div class="cfm-head"><span class="cfm-title">筛选</span><button class="cfm-close" id="coll-filter-close">✕</button></div>' +
+      '<div class="cfm-head"><span class="cfm-title">筛选</span><span class="cfm-tip">所有条件均为选填</span><button class="cfm-close" id="coll-filter-close">✕</button></div>' +
       '<div class="cfm-body" id="coll-filter-modal-body"></div>' +
-      '<div class="cfm-foot"><button class="cfm-reset" id="coll-reset">🧹 重置所有筛选条件</button></div>' +
+      '<div class="cfm-foot"><button class="cfm-reset" id="coll-reset">🧹 重置</button><button class="cfm-apply" id="coll-filter-apply">确认筛选</button></div>' +
       '</div>';
   }
 
@@ -7653,30 +7779,38 @@ function defaultData() {
     var body = $("coll-filter-modal-body");
     if (!body) return;
     var cat = c.filterCat === "all" ? null : collCatOf(c.filterCat);
+    /* 状态筛选与分类强绑定（PRD 补充 4）：仅当选「零食」分类时解锁 */
+    var statusEnabled = c.filterCat === "snack";
     var subHtml = (cat && cat.subs && cat.subs.length)
       ? '<div class="cfm-group"><div class="cfm-label">二级分类</div><div class="coll-fselect-btns" data-g="sub">' +
         ['全部'].concat(cat.subs).map(function (s) { return '<button class="cfm-opt' + ((!c.filterSub && s === "全部") || c.filterSub === s ? " on" : "") + '" data-v="' + esc(s) + '">' + esc(s) + '</button>'; }).join("") +
         '</div></div>'
       : '<div class="cfm-group"><div class="cfm-label">二级分类</div><div class="cfm-sub-empty">选择具体分类后可进一步筛选二级分类</div></div>';
+    var statusGroup = statusEnabled
+      ? '<div class="cfm-group"><div class="cfm-label">状态</div><div class="coll-fselect-btns" data-g="status">' +
+        '<button class="cfm-opt' + (!c.filterStatus ? " on" : "") + '" data-v="">全部</button>' +
+        allCollStatus().map(function (s) { return '<button class="cfm-opt' + (c.filterStatus === s.key ? " on" : "") + '" data-v="' + esc(s.key) + '">' + esc(s.name) + '</button>'; }).join("") +
+        '</div></div>'
+      : '<div class="cfm-group disabled"><div class="cfm-label">状态</div><div class="coll-fselect-btns" data-g="status">' +
+        allCollStatus().map(function (s) { return '<button class="cfm-opt' + (c.filterStatus === s.key ? " on" : "") + '" disabled data-v="' + esc(s.key) + '">' + esc(s.name) + '</button>'; }).join("") +
+        '</div><div class="cfm-sub-empty lock">🔒 仅当筛选分类为「零食」时可用</div></div>';
     var html =
       '<div class="cfm-group"><div class="cfm-label">分类</div><div class="coll-fselect-btns" data-g="cat">' +
         '<button class="cfm-opt' + (c.filterCat === "all" ? " on" : "") + '" data-v="all">全部</button>' +
         allCollCats().map(function (x) { return '<button class="cfm-opt' + (c.filterCat === x.key ? " on" : "") + '" data-v="' + esc(x.key) + '">' + esc(x.name) + '</button>'; }).join("") +
       '</div></div>' +
       subHtml +
-      '<div class="cfm-group"><div class="cfm-label">状态</div><div class="coll-fselect-btns" data-g="status">' +
-        '<button class="cfm-opt' + (!c.filterStatus ? " on" : "") + '" data-v="">全部</button>' +
-        COLL_STATUS.map(function (s) { return '<button class="cfm-opt' + (c.filterStatus === s.key ? " on" : "") + '" data-v="' + esc(s.key) + '">' + esc(s.name) + '</button>'; }).join("") +
-      '</div></div>' +
+      statusGroup +
       '<div class="cfm-group"><div class="cfm-label">标签</div><div class="coll-fselect-btns" data-g="tag">' +
         '<button class="cfm-opt' + (!c.filterTag ? " on" : "") + '" data-v="">全部</button>' +
         collectionAllTags().map(function (t) { return '<button class="cfm-opt' + (c.filterTag === t.name ? " on" : "") + '" data-v="' + esc(t.name) + '">' + esc(t.name) + '</button>'; }).join("") +
       '</div></div>' +
       '<div class="cfm-group"><div class="cfm-label">来源</div><div class="coll-fselect-btns" data-g="source">' +
         '<button class="cfm-opt' + (!c.filterSource ? " on" : "") + '" data-v="">全部</button>' +
-        (function () { var used = {}; (c.items || []).forEach(function (it) { if (it.source) used[it.source] = 1; }); return Object.keys(used).sort().map(function (s) { return '<button class="cfm-opt' + (c.filterSource === s ? " on" : "") + '" data-v="' + esc(s) + '">' + esc(s) + '</button>'; }).join(""); })() +
+        /* 候选项完全由「已收藏内容」动态生成：从未收藏过的平台不会出现，新增平台自动出现 */
+        usedCollSources().map(function (s) { return '<button class="cfm-opt' + (c.filterSource === s ? " on" : "") + '" data-v="' + esc(s) + '">' + esc(s) + '</button>'; }).join("") +
       '</div></div>' +
-      '<div class="cfm-group"><div class="cfm-label">排序</div><div class="coll-fselect-btns" data-g="sort">' +
+      '<div class="cfm-group"><div class="cfm-label">排序方式</div><div class="coll-fselect-btns" data-g="sort">' +
         '<button class="cfm-opt' + (c.sortBy === "time-desc" ? " on" : "") + '" data-v="time-desc">最新优先</button>' +
         '<button class="cfm-opt' + (c.sortBy === "time-asc" ? " on" : "") + '" data-v="time-asc">最早优先</button>' +
         '<button class="cfm-opt' + (c.sortBy === "name" ? " on" : "") + '" data-v="name">名称排序</button>' +
@@ -7686,16 +7820,19 @@ function defaultData() {
       b.onclick = function () {
         var g = b.parentElement.getAttribute("data-g");
         var v = b.getAttribute("data-v");
-        if (g === "cat") { c.filterCat = v; c.filterSub = null; }
+        if (g === "cat") {
+          c.filterCat = v; c.filterSub = null;
+          /* 切换分类时做状态联动清洗：非零食分类 → 清除已选状态并置灰（PRD 补充 4） */
+          if (c.filterCat !== "snack" && c.filterStatus) { c.filterStatus = ""; toast("状态仅适用于「零食」分类，已自动清除"); }
+        }
         else if (g === "sub") { c.filterSub = (v === "全部") ? null : v; }
-        else if (g === "status") { c.filterStatus = v; }
+        else if (g === "status") { if (c.filterCat === "snack") c.filterStatus = v; }
         else if (g === "tag") { c.filterTag = v || null; }
         else if (g === "source") { c.filterSource = v; }
         else if (g === "sort") { c.sortBy = v; }
         Store.save();
-        renderCollection();
+        /* 只刷新弹窗内部（二级分类等联动即时生效），列表在点「确认筛选」后统一刷新 */
         renderFilterModalBody();
-        var m = $("coll-filter-modal"); if (m) m.classList.add("show");
       };
     });
   }
@@ -7705,10 +7842,10 @@ function defaultData() {
     var items = c.items || [];
     var perCat = {}; items.forEach(function (it) { perCat[it.cat] = (perCat[it.cat] || 0) + 1; });
     var html = '<div class="coll-tabs">';
-    html += '<div class="coll-tab' + (c.filterCat === "all" ? " active" : "") + '" data-cat="all">全部 ' + items.length + '</div>';
+    html += '<div class="coll-tab' + (c.filterCat === "all" ? " active" : "") + '" data-cat="all">全部</div>';
     allCollCats().forEach(function (cat) {
       if (cat.key === "uncat" && !perCat.uncat) return;
-      html += '<div class="coll-tab' + (c.filterCat === cat.key ? " active" : "") + '" data-cat="' + cat.key + '">' + esc(cat.name) + ' ' + (perCat[cat.key] || 0) + '</div>';
+      html += '<div class="coll-tab' + (c.filterCat === cat.key ? " active" : "") + '" data-cat="' + cat.key + '">' + esc(cat.name) + '</div>';
     });
     html += '<div class="coll-tab coll-tab-add" id="coll-addcat"><span class="coll-tab-plus">+</span>新建类别</div>';
     html += '</div>';
@@ -7725,7 +7862,7 @@ function defaultData() {
     cat.subs.forEach(function (sub) {
       var count = items.filter(function (it) { return it.cat === cat.key && it.sub === sub; }).length;
       if (!count && c.filterSub !== sub) return;
-      html += '<div class="coll-subnav-item' + (c.filterSub === sub ? " active" : "") + '" data-sub="' + esc(sub) + '">' + esc(sub) + ' ' + count + '</div>';
+      html += '<div class="coll-subnav-item' + (c.filterSub === sub ? " active" : "") + '" data-sub="' + esc(sub) + '">' + esc(sub) + '</div>';
     });
     html += '</div>';
     return html;
@@ -7783,36 +7920,54 @@ function defaultData() {
     var c = collData();
     var arr = collectionFilteredItems();
     if (!arr.length) {
-      return '<div class="coll-empty">暂无收藏<br><small>点击右上角「+ 新建收藏」添加第一个宝贝</small><button class="coll-empty-refresh" id="coll-empty-refresh">↻ 刷新 / 重置筛选</button></div>';
+      return '<div class="coll-empty">暂无收藏<br><small>点击右下角「＋ 新建收藏」添加第一个宝贝</small><button class="coll-empty-refresh" id="coll-empty-refresh">↻ 刷新 / 重置筛选</button></div>';
     }
-    if (c.view === "list") {
+    /* 手机端只保留列表模式（PRD 6）：不再提供卡片视图 */
+    if (c.view === "list" || collIsMobile()) {
       return '<div class="coll-listview">' + arr.map(function (it) { return collectionListItemHtml(it); }).join("") + '</div>';
     }
     return '<div class="coll-grid">' + arr.map(function (it) { return collectionCardHtml(it); }).join("") + '</div>';
   }
 
-  function collectionCardHtml(it) {
+  /* 详情分点数据：名称之外的字段逐条呈现（图片功能已彻底移除；空字段直接不渲染 —— PRD 6） */
+  function collFactRows(it, opt) {
     var cat = collCatOf(it.cat);
     var st = collStatusOf(it.status);
+    var rows = [];
+    rows.push({ k: "分类", v: cat.name });
+    if (it.sub) rows.push({ k: "二级分类", v: it.sub });
+    if (it.source) rows.push({ k: "来源", v: it.source });
+    if (it.brand) rows.push({ k: "品牌", v: it.brand });
+    /* 状态与「零食」分类强绑定（PRD 补充）：非零食分类即使存有旧数据也严禁显示 */
+    if (it.cat === "snack" && it.status) rows.push({ k: "状态", v: st.name, cls: st.cls });
+    if (opt && opt.price && it.price) rows.push({ k: "价格", v: "¥" + it.price });
+    if (opt && opt.date && it.purchaseDate) rows.push({ k: "购买于", v: it.purchaseDate });
+    return rows;
+  }
+  function collFactsHtml(it, opt) {
+    return '<ul class="coll-facts' + (opt && opt.big ? " big" : "") + '">' + collFactRows(it, opt).map(function (r) {
+      return '<li><span class="cf-k">' + esc(r.k) + '</span><span class="cf-v' + (r.cls ? " " + esc(r.cls) : "") + '">' + esc(r.v) + '</span></li>';
+    }).join("") + '</ul>';
+  }
+
+  function collectionCardHtml(it) {
     var tags = (it.tags || []).slice(0, 3);
     var more = (it.tags || []).length - tags.length;
     var c = collData();
     var checked = (c.selected || []).indexOf(it.id) >= 0 ? " checked" : "";
     var batchCheck = c.batchMode ? '<input type="checkbox" class="coll-batch-check" data-id="' + esc(it.id) + '"' + checked + '>' : "";
-    var statusBadge = (cat.key === "snack") ? '<div class="coll-status ' + esc(st.cls) + '">' + esc(st.name) + '</div>' : '';
     return '<div class="coll-card" data-id="' + esc(it.id) + '">' +
       batchCheck +
-      '<div class="coll-card-head"><span>' + esc(cat.name) + '</span>' + (it.sub ? '<span class="coll-subtag">' + esc(it.sub) + '</span>' : '') + '</div>' +
-      statusBadge +
       (it.link ? '<a class="coll-link" data-link="' + esc(it.link) + '" title="打开链接" onclick="event.stopPropagation();openCollectionLink(this.getAttribute(\'data-link\'));return false;">链</a>' : '') +
       '<div class="coll-more" data-more="' + esc(it.id) + '">···</div>' +
-      (it.img ? '<img class="coll-thumb" src="' + esc(it.img) + '" alt="">' : '<div class="coll-no-thumb">' + esc(it.name.slice(0, 8)) + '</div>') +
       '<div class="coll-name">' + esc(it.name) + '</div>' +
+      collFactsHtml(it, { price: true }) +
       (it.note ? '<div class="coll-note">' + esc(it.note) + '</div>' : '') +
-      '<div class="coll-tags">' + tags.map(function (t) { return '<span class="coll-tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; }).join("") + (more > 0 ? '<span class="coll-tag more">+' + more + '</span>' : '') + '</div>' +
+      (tags.length || more > 0 ? '<div class="coll-tags">' + tags.map(function (t) { return '<span class="coll-tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; }).join("") + (more > 0 ? '<span class="coll-tag more">+' + more + '</span>' : '') + '</div>' : '') +
       '</div>';
   }
 
+  /* 列表行：左侧缩略图位改为「大字号文字要点」，外层 coll-lwrap 承载左滑删除 */
   function collectionListItemHtml(it) {
     var cat = collCatOf(it.cat);
     var st = collStatusOf(it.status);
@@ -7820,20 +7975,315 @@ function defaultData() {
     var c = collData();
     var checked = (c.selected || []).indexOf(it.id) >= 0 ? " checked" : "";
     var batchCheck = c.batchMode ? '<input type="checkbox" class="coll-batch-check" data-id="' + esc(it.id) + '"' + checked + '>' : "";
-    var statusBadge = (cat.key === "snack") ? '<div class="coll-status ' + esc(st.cls) + '">' + esc(st.name) + '</div>' : '';
-    return '<div class="coll-lrow" data-id="' + esc(it.id) + '">' +
-      batchCheck +
-      (it.img ? '<img class="coll-lthumb" src="' + esc(it.img) + '" alt="">' : '<div class="coll-lthumb coll-lplaceholder">' + esc(cat.name.slice(0, 1)) + '</div>') +
-      '<div class="coll-lmain">' +
-        '<div class="coll-lname">' + esc(it.name) + '</div>' +
-        '<div class="coll-lmeta">' + esc(cat.name) + (it.sub ? " · " + esc(it.sub) : "") + (it.source ? " · " + esc(it.source) : "") + '</div>' +
-        '<div class="coll-ltags">' + tags.map(function (t) { return '<span class="coll-tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; }).join("") + '</div>' +
+    var keyTxt = (it.name || "?").slice(0, 2);
+    /* 列表行分点：空字段直接不渲染（PRD 6：详情分点空字段隐藏） */
+    var lf = ['<span class="clf">' + esc(cat.name) + '</span>'];
+    if (it.sub) lf.push('<span class="clf">' + esc(it.sub) + '</span>');
+    if (it.source) lf.push('<span class="clf">' + esc(it.source) + '</span>');
+    if (it.cat === "snack" && it.status) lf.push('<span class="clf ' + esc(st.cls) + '">' + esc(st.name) + '</span>');
+    return '<div class="coll-lwrap" data-id="' + esc(it.id) + '">' +
+      '<div class="coll-lrow" data-id="' + esc(it.id) + '">' +
+        batchCheck +
+        '<div class="coll-lkey">' + esc(keyTxt) + '</div>' +
+        '<div class="coll-lmain">' +
+          '<div class="coll-lname">' + esc(it.name) + '</div>' +
+          '<div class="coll-lfacts">' + lf.join('') + '</div>' +
+          (tags.length ? '<div class="coll-ltags">' + tags.map(function (t) { return '<span class="coll-tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; }).join("") + '</div>' : '') +
+        '</div>' +
+        '<div class="coll-lside">' +
+          (it.link ? '<a class="mini-btn" data-link="' + esc(it.link) + '" onclick="event.stopPropagation();openCollectionLink(this.getAttribute(\'data-link\'));return false;">打开</a>' : '') +
+        '</div>' +
       '</div>' +
-      '<div class="coll-lside">' +
-        statusBadge +
-        (it.link ? '<a class="mini-btn" data-link="' + esc(it.link) + '" onclick="event.stopPropagation();openCollectionLink(this.getAttribute(\'data-link\'));return false;">打开</a>' : '') +
-      '</div>' +
+      '<button class="coll-ldel" data-del="' + esc(it.id) + '" type="button">删除</button>' +
       '</div>';
+  }
+
+  /* ========== 全屏沉浸式搜索（PRD 1） ========== */
+  /* 模糊匹配：任意位置包含即命中（搜「辣」→ 辣椒酱 / 麻辣鸡丝；搜「鸡丝」→ 麻辣鸡丝），
+     同时支持「拆字顺序匹配」，例如「辣鸡」也能命中「麻辣鸡丝」 */
+  function collMatch(hay, q) {
+    hay = (hay || "").toLowerCase(); q = (q || "").trim().toLowerCase();
+    if (!q) return true;
+    if (hay.indexOf(q) >= 0) return true;
+    var i = 0;
+    for (var k = 0; k < q.length; k++) {
+      if (q[k] === " ") continue;
+      i = hay.indexOf(q[k], i);
+      if (i < 0) return false;
+      i++;
+    }
+    return true;
+  }
+  function collHaystack(it) {
+    return [it.name, it.note, (it.tags || []).join(" "), it.sub, it.source, it.brand, collCatOf(it.cat).name].filter(Boolean).join(" ");
+  }
+  function collSearchResults(q) {
+    var arr = (collData().items || []).filter(function (it) { return collMatch(collHaystack(it), q); });
+    var lq = (q || "").trim().toLowerCase();
+    /* 名称直接包含的排前面，其次备注/标签命中 */
+    arr.sort(function (a, b) {
+      var sa = (a.name || "").toLowerCase().indexOf(lq) >= 0 ? 0 : 1;
+      var sb = (b.name || "").toLowerCase().indexOf(lq) >= 0 ? 0 : 1;
+      if (sa !== sb) return sa - sb;
+      return b.createdAt - a.createdAt;
+    });
+    return arr;
+  }
+  function collHi(text, q) {
+    text = text || ""; q = (q || "").trim();
+    if (!q) return esc(text);
+    var i = text.toLowerCase().indexOf(q.toLowerCase());
+    if (i < 0) return esc(text);
+    return esc(text.slice(0, i)) + '<em class="csl-hi">' + esc(text.slice(i, i + q.length)) + '</em>' + esc(text.slice(i + q.length));
+  }
+  function collPushRecent(q) {
+    q = (q || "").trim(); if (!q) return;
+    var c = collData();
+    c.recent = [q].concat((c.recent || []).filter(function (x) { return x !== q; })).slice(0, 12);
+    Store.save();
+  }
+  function renderCollSearchBody(q) {
+    var box = $("csl-body"); if (!box) return;
+    var c = collData();
+    q = (q || "").trim();
+    if (!q) {
+      var recent = c.recent || [];
+      var hotTags = collectionAllTags().slice(0, 12);
+      var srcs = usedCollSources().slice(0, 8);
+      var cats = allCollCats().filter(function (x) { return (c.items || []).some(function (it) { return it.cat === x.key; }); }).slice(0, 10);
+      box.innerHTML =
+        (recent.length
+          ? '<div class="csl-sec"><div class="csl-sec-h"><span>最近搜索</span><button class="csl-clr-recent" id="csl-clr-recent" type="button">清除</button></div>' +
+            '<div class="csl-chips">' + recent.map(function (t) { return '<button class="csl-chip" data-q="' + esc(t) + '" type="button">' + esc(t) + '</button>'; }).join("") + '</div></div>'
+          : '') +
+        '<div class="csl-sec"><div class="csl-sec-h"><span>搜索发现</span></div><div class="csl-chips">' +
+          cats.map(function (x) { return '<button class="csl-chip cat" data-q="' + esc(x.name) + '" type="button">' + esc(x.name) + '</button>'; }).join("") +
+          hotTags.map(function (t) { return '<button class="csl-chip" data-q="' + esc(t.name) + '" type="button">' + esc(t.name) + '</button>'; }).join("") +
+          srcs.map(function (s) { return '<button class="csl-chip src" data-q="' + esc(s) + '" type="button">' + esc(s) + '</button>'; }).join("") +
+        '</div></div>' +
+        (!recent.length && !hotTags.length && !srcs.length && !cats.length ? '<div class="csl-empty">还没有可搜索的内容，先去添加一条收藏吧</div>' : '');
+    } else {
+      var arr = collSearchResults(q);
+      if (!arr.length) {
+        box.innerHTML = '<div class="csl-empty">没有找到「' + esc(q) + '」相关的收藏<br><small>换个关键词试试，比如商品名、标签或来源平台</small></div>';
+      } else {
+        box.innerHTML = '<div class="csl-count">找到 ' + arr.length + ' 条结果</div>' +
+          '<div class="csl-list">' + arr.map(function (it) {
+            var cat = collCatOf(it.cat);
+            var st = collStatusOf(it.status);
+            return '<div class="csl-row" data-id="' + esc(it.id) + '">' +
+              '<div class="csl-key">' + esc((it.name || "?").slice(0, 2)) + '</div>' +
+              '<div class="csl-main">' +
+                '<div class="csl-name">' + collHi(it.name, q) + '</div>' +
+                '<div class="csl-meta"><span>' + esc(cat.name) + '</span>' +
+                  (it.sub ? '<span>' + collHi(it.sub, q) + '</span>' : '') +
+                  (it.source ? '<span>' + collHi(it.source, q) + '</span>' : '') +
+                  (it.cat === "snack" && it.status ? '<span class="' + esc(st.cls) + '">' + esc(st.name) + '</span>' : '') +
+                '</div>' +
+                ((it.tags || []).length ? '<div class="csl-tags">' + (it.tags || []).slice(0, 4).map(function (t) { return '<span class="coll-tag">' + collHi(t, q) + '</span>'; }).join("") + '</div>' : '') +
+                (it.note ? '<div class="csl-note">' + collHi(it.note, q) + '</div>' : '') +
+              '</div>' +
+            '</div>';
+          }).join("") + '</div>' +
+          '<button class="csl-all" id="csl-all" type="button">在列表中查看全部 ' + arr.length + ' 条结果</button>';
+      }
+    }
+    /* 事件绑定 */
+    box.querySelectorAll(".csl-chip").forEach(function (b) {
+      b.onclick = function () {
+        var v = this.getAttribute("data-q");
+        var inp = $("csl-input"); if (inp) { inp.value = v; inp.focus(); }
+        var cl = $("csl-clear"); if (cl) cl.classList.remove("hide");
+        renderCollSearchBody(v);
+      };
+    });
+    var clrRecent = $("csl-clr-recent");
+    if (clrRecent) clrRecent.onclick = function () { collData().recent = []; Store.save(); renderCollSearchBody(""); };
+    box.querySelectorAll(".csl-row").forEach(function (r) {
+      r.onclick = function () {
+        var id = this.getAttribute("data-id");
+        collPushRecent(q);
+        closeCollectionSearch();
+        openCollectionDrawer(id);
+      };
+    });
+    var allBtn = $("csl-all");
+    if (allBtn) allBtn.onclick = function () { commitCollSearch(q); };
+  }
+  function commitCollSearch(q) {
+    var c = collData();
+    c.q = (q || "").trim();
+    collPushRecent(c.q);
+    Store.save();
+    closeCollectionSearch();
+    renderCollection();
+  }
+  function openCollectionSearch() {
+    var layer = $("coll-search-layer"); if (!layer) return;
+    var c = collData();
+    layer.classList.add("show");
+    document.body.style.overflow = "hidden";
+    var inp = $("csl-input");
+    var clear = $("csl-clear");
+    if (inp) {
+      inp.value = c.q || "";
+      if (clear) clear.classList.toggle("hide", !inp.value);
+      inp.oninput = function () {
+        if (clear) clear.classList.toggle("hide", !this.value);
+        renderCollSearchBody(this.value);
+      };
+      inp.onkeydown = function (e) {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === "Enter") { e.preventDefault(); commitCollSearch(this.value); }
+        if (e.key === "Escape") { e.preventDefault(); closeCollectionSearch(); }
+      };
+      setTimeout(function () { try { inp.focus(); } catch (err) {} }, 40);
+    }
+    if (clear) clear.onclick = function () { if (inp) { inp.value = ""; inp.focus(); } this.classList.add("hide"); renderCollSearchBody(""); };
+    var cancel = $("csl-cancel");
+    if (cancel) cancel.onclick = function () { closeCollectionSearch(); };
+    renderCollSearchBody(c.q || "");
+  }
+  function closeCollectionSearch() {
+    var layer = $("coll-search-layer");
+    if (layer) layer.classList.remove("show");
+    document.body.style.overflow = "";
+  }
+
+  /* ========== 列表项左滑删除（PRD 6） ========== */
+  var COLL_SWIPE_W = 84;
+  var collSwipeOpen = null;
+  function collCloseSwipe() {
+    if (collSwipeOpen && collSwipeOpen._collClose) collSwipeOpen._collClose();
+    collSwipeOpen = null;
+  }
+  /* PC/鼠标端左滑删除；手机端改由长按触发（PRD 补充 3：手机端统一长按，避免与系统手势冲突） */
+  function bindCollSwipeDelete(root) {
+    if (collIsMobile()) return;
+    root.querySelectorAll(".coll-lwrap").forEach(function (wrap) {
+      var row = wrap.querySelector(".coll-lrow");
+      var del = wrap.querySelector(".coll-ldel");
+      if (!row) return;
+      var sx = 0, sy = 0, dx = 0, dragging = false, decided = false, horiz = false;
+      function closeRow() { wrap.classList.remove("open"); row.style.transform = ""; }
+      wrap._collClose = closeRow;
+      row.addEventListener("pointerdown", function (e) {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        if (collData().batchMode) return;
+        sx = e.clientX; sy = e.clientY; dx = wrap.classList.contains("open") ? -COLL_SWIPE_W : 0;
+        dragging = true; decided = false; horiz = false;
+        row.style.transition = "none";
+      });
+      row.addEventListener("pointermove", function (e) {
+        if (!dragging) return;
+        var mx = e.clientX - sx, my = e.clientY - sy;
+        if (!decided) {
+          if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+          decided = true; horiz = Math.abs(mx) > Math.abs(my) + 2;
+          if (!horiz) { dragging = false; row.style.transition = ""; return; }
+          try { row.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+        var base = wrap.classList.contains("open") ? -COLL_SWIPE_W : 0;
+        dx = Math.max(-COLL_SWIPE_W, Math.min(0, base + mx));
+        row.style.transform = "translateX(" + dx + "px)";
+      });
+      function finish() {
+        if (!dragging) return;
+        dragging = false;
+        row.style.transition = "";
+        if (!horiz) return;
+        row._swipeAt = Date.now();
+        if (dx <= -COLL_SWIPE_W * 0.45) {
+          if (collSwipeOpen && collSwipeOpen !== wrap) collCloseSwipe();
+          wrap.classList.add("open");
+          row.style.transform = "translateX(-" + COLL_SWIPE_W + "px)";
+          collSwipeOpen = wrap;
+        } else {
+          closeRow();
+          if (collSwipeOpen === wrap) collSwipeOpen = null;
+        }
+      }
+      row.addEventListener("pointerup", finish);
+      row.addEventListener("pointercancel", finish);
+      row.addEventListener("lostpointercapture", finish);
+      if (del) {
+        del.onclick = function (e) {
+          e.stopPropagation();
+          var id = this.getAttribute("data-del");
+          closeRow(); collSwipeOpen = null;
+          confirmDeleteCollection([id]);   // 内含二次确认弹窗
+        };
+      }
+    });
+    if (!root._swipeOutsideBound) {
+      root._swipeOutsideBound = true;
+      document.addEventListener("pointerdown", function (e) {
+        if (!collSwipeOpen) return;
+        if (e.target.closest && e.target.closest(".coll-lwrap") === collSwipeOpen) return;
+        collCloseSwipe();
+      }, true);
+    }
+  }
+
+  /* ========== 手机端长按删除（PRD 补充 3） ==========
+     长按列表项约 600ms → 触觉震动 + 视觉高亮 → 弹出底部 ActionSheet（删除/移动分类/编辑/取消）
+     单击仍进入详情；长按触发后 400ms 内屏蔽随后的 click，避免误打开详情 */
+  function bindCollLongPress(root) {
+    if (!collIsMobile()) return;
+    root.querySelectorAll(".coll-lwrap").forEach(function (wrap) {
+      var row = wrap.querySelector(".coll-lrow");
+      if (!row) return;
+      var timer = null, moved = false, sx = 0, sy = 0;
+      function cancelPress() {
+        if (timer) { clearTimeout(timer); timer = null; }
+        row.classList.remove("pressing");
+      }
+      row.addEventListener("pointerdown", function (e) {
+        if (e.pointerType === "mouse") return;          // 手机端鼠标视为点击，不触发长按
+        if (collData().batchMode) return;
+        moved = false; sx = e.clientX; sy = e.clientY;
+        timer = setTimeout(function () {
+          timer = null;
+          if (moved) { row.classList.remove("pressing"); return; }
+          row.classList.add("pressing");
+          if (navigator.vibrate) { try { navigator.vibrate(18); } catch (err) {} }   // 触觉反馈
+          row._longAt = Date.now();
+          openCollectionActionSheet(wrap.getAttribute("data-id"));
+          setTimeout(function () { row.classList.remove("pressing"); }, 180);
+        }, 600);
+      });
+      row.addEventListener("pointermove", function (e) {
+        if (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10) moved = true;
+      });
+      row.addEventListener("pointerup", cancelPress);
+      row.addEventListener("pointercancel", cancelPress);
+    });
+  }
+
+  /* 底部操作菜单（ActionSheet）：删除 / 移动分类 / 编辑 / 取消，挂载在 body 根节点 */
+  function openCollectionActionSheet(id) {
+    var it = (collData().items || []).filter(function (x) { return x.id === id; })[0];
+    var name = it ? it.name : "";
+    var ov = document.createElement("div");
+    ov.className = "cas-overlay";
+    var closeCas = function () { if (ov && ov.parentNode) ov.parentNode.removeChild(ov); };
+    ov.innerHTML =
+      '<div class="cas-sheet">' +
+        '<div class="cas-title">' + esc(name.length > 14 ? name.slice(0, 14) + "…" : name) + '</div>' +
+        '<button class="cas-item" id="cas-edit" type="button">编辑</button>' +
+        '<button class="cas-item" id="cas-move" type="button">移动分类</button>' +
+        '<button class="cas-item danger" id="cas-del" type="button">删除</button>' +
+        '<button class="cas-cancel" id="cas-cancel" type="button">取消</button>' +
+      '</div>';
+    (document.body || document.documentElement).appendChild(ov);
+    ov.onclick = function (e) { if (e.target === ov) closeCas(); };
+    $("cas-cancel").onclick = function () { closeCas(); };
+    $("cas-edit").onclick = function () { closeCas(); openCollectionEditor(id); };
+    $("cas-move").onclick = function () { closeCas(); openCollectionMove(id); };
+    $("cas-del").onclick = function () {
+      closeCas();
+      confirmDeleteCollection([id]);   // 二次确认：确定要永久删除该收藏吗
+    };
   }
 
   function bindCollectionHandlers() {
@@ -7869,16 +8319,17 @@ function defaultData() {
     var addCatBtn = $("coll-addcat");
     if (addCatBtn) addCatBtn.onclick = function () { addCollectionCategory(); };
 
-    var qInput = $("coll-q");
-    if (qInput) {
-      qInput.addEventListener("input", function () {
-        c.q = this.value;
-        body.querySelector(".coll-sclear").classList.toggle("hide", !c.q);
-        renderCollectionItems();
-      });
+    /* 顶部搜索框只是入口：点击进入全屏沉浸式搜索页 */
+    var sTrigger = $("coll-search-trigger");
+    if (sTrigger) {
+      sTrigger.onclick = function (e) {
+        if (e.target && e.target.id === "coll-q-clear") return;
+        openCollectionSearch();
+      };
+      sTrigger.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCollectionSearch(); } };
     }
     var qClear = $("coll-q-clear");
-    if (qClear) qClear.onclick = function () { c.q = ""; if (qInput) qInput.value = ""; renderCollection(); };
+    if (qClear) qClear.onclick = function (e) { e.stopPropagation(); c.q = ""; Store.save(); renderCollection(); };
 
     var statusSel = $("coll-status");
     if (statusSel) statusSel.onchange = function () { c.filterStatus = this.value || ""; renderCollection(); };
@@ -7904,9 +8355,17 @@ function defaultData() {
     var tagMgr = $("coll-tagmgr");
     if (tagMgr) tagMgr.onclick = function () { openCollectionTagManager(); };
 
+    /* 删除手势：PC 左滑 / 手机端长按（PRD 补充 3），各自内部判断平台 */
+    bindCollSwipeDelete(body);
+    bindCollLongPress(body);
+
     body.querySelectorAll(".coll-card, .coll-lrow").forEach(function (el) {
       el.onclick = function (e) {
         if (e.target.closest("a") || e.target.closest(".coll-more") || e.target.closest(".coll-tag")) return;
+        /* 刚完成左滑或长按手势时忽略这次 click，避免误打开详情 */
+        if (el._swipeAt && Date.now() - el._swipeAt < 350) return;
+        if (el._longAt && Date.now() - el._longAt < 400) return;
+        if (el.parentElement && el.parentElement.classList.contains("open")) { collCloseSwipe(); return; }
         var id = el.getAttribute("data-id");
         if (c.batchMode) {
           toggleCollectionSelect(id);
@@ -7949,14 +8408,17 @@ function defaultData() {
     var batchDel = $("coll-batch-del");
     if (batchDel) batchDel.onclick = function () { openCollectionBatchDelete(); };
 
+    var applyFilter = function () { renderCollection(); };
     var filterToggle = $("coll-filter-toggle");
     if (filterToggle) filterToggle.onclick = function () { renderFilterModalBody(); var m = $("coll-filter-modal"); if (m) m.classList.add("show"); };
     var filterClose = $("coll-filter-close");
-    if (filterClose) filterClose.onclick = function () { var m = $("coll-filter-modal"); if (m) m.classList.remove("show"); };
+    if (filterClose) filterClose.onclick = function () { var m = $("coll-filter-modal"); if (m) m.classList.remove("show"); applyFilter(); };
+    var filterApply = $("coll-filter-apply");
+    if (filterApply) filterApply.onclick = function () { var m = $("coll-filter-modal"); if (m) m.classList.remove("show"); applyFilter(); toast("已应用筛选"); };
     var filterReset = $("coll-reset");
-    if (filterReset) filterReset.onclick = function () { resetCollectionFilters(); var q = $("coll-q"); if (q) q.value = ""; renderCollection(); renderFilterModalBody(); var m = $("coll-filter-modal"); if (m) m.classList.add("show"); };
+    if (filterReset) filterReset.onclick = function () { resetCollectionFilters(); Store.save(); renderFilterModalBody(); toast("已重置"); };
     var filterModal = $("coll-filter-modal");
-    if (filterModal) filterModal.onclick = function (e) { if (e.target === this) this.classList.remove("show"); };
+    if (filterModal) filterModal.onclick = function (e) { if (e.target === this) { this.classList.remove("show"); applyFilter(); } };
     var batchCancel = $("coll-batch-cancel");
     if (batchCancel) batchCancel.onclick = function () { toggleCollectionBatch(); };
     var emptyRefresh = $("coll-empty-refresh");
@@ -7966,7 +8428,7 @@ function defaultData() {
 
   function renderCollection() {
     var body = $("lc-collection-body"); if (!body) return;
-    body.innerHTML = collectionToolbarHtml() + collectionTabsHtml() + collectionBatchBannerHtml() + '<div id="coll-items">' + collectionItemsHtml() + '</div>' + collectionBatchBarHtml() + collectionFilterModalHtml();
+    body.innerHTML = collectionBodyHtml();
     bindCollectionHandlers();
   }
   function renderCollectionItems() {
@@ -7978,7 +8440,6 @@ function defaultData() {
   function openCollectionEditor(editId) {
     var it = editId ? (collData().items || []).filter(function (x) { return x.id === editId; })[0] : null;
     var draftTags = it ? it.tags.slice() : [];
-    var draftImg = it ? it.img : null;
     var cat = it ? it.cat : (collData().filterCat !== "all" ? collData().filterCat : "snack");
     var sub = it ? it.sub : "";
     var status = it ? (it.status || "want") : "want";
@@ -7989,11 +8450,10 @@ function defaultData() {
       '<div class="row"><label>二级分类</label><select id="ce-sub">' + collCatOf(cat).subs.map(function (s) { return '<option value="' + esc(s) + '"' + (sub === s ? " selected" : "") + '>' + esc(s) + '</option>'; }).join("") + '</select></div>' +
       '<div class="row" id="ce-brand-row" style="display:' + (cat === "snack" ? "block" : "none") + '"><label>品牌名称</label><input type="text" id="ce-brand" placeholder="例如：乐事、卫龙、三只松鼠" value="' + (it ? esc(it.brand || "") : "") + '"></div>' +
       '<div class="row"><label>标签（输入后按回车）</label><div class="coll-taginput" id="ce-tagwrap"><input type="text" id="ce-tag" placeholder="如：空气炸锅、种草（回车存标签·空回车跳走）"></div></div>' +
-      '<div class="row2"><div class="row"><label>来源平台</label><select id="ce-source"><option value="">不填</option>' + COLL_SOURCES.map(function (s) { return '<option' + ((it && it.source === s) ? " selected" : "") + '>' + esc(s) + '</option>'; }).join("") + '</select></div>' +
+      '<div class="row2"><div class="row"><label>来源平台</label><select id="ce-source"><option value="">不填</option>' + allCollSources().map(function (s) { return '<option' + ((it && it.source === s) ? " selected" : "") + '>' + esc(s) + '</option>'; }).join("") + '</select></div>' +
       '<div class="row"><label>链接</label><input type="text" id="ce-link" placeholder="拼多多/淘宝/小红书链接" value="' + (it ? esc(it.link || "") : "") + '" autocomplete="off" spellcheck="false"></div></div>' +
-      '<div class="row"><label>图片</label><div class="coll-imgpick"><img id="ce-img-prev" style="display:' + (draftImg ? "inline-block" : "none") + '" src="' + (draftImg || "") + '"><label class="mini-btn">选择图片<input type="file" id="ce-img" accept="image/*" hidden></label>' + (draftImg ? '<button class="mini-btn danger" id="ce-img-rm">移除</button>' : '') + '</div></div>' +
       '<div class="row"><label>口味 / 备注</label><textarea id="ce-note" placeholder="例如：麻辣味，有点咸；这家店周二休息">' + (it ? esc(it.note || "") : "") + '</textarea></div>' +
-      '<div class="row2" id="ce-statusprice-row" style="display:' + (cat === "snack" ? "flex" : "none") + '"><div class="row"><label>状态</label><select id="ce-status">' + COLL_STATUS.map(function (s) { return '<option value="' + s.key + '"' + (status === s.key ? " selected" : "") + '>' + esc(s.name) + '</option>'; }).join("") + '</select></div>' +
+      '<div class="row2" id="ce-statusprice-row" style="display:' + (cat === "snack" ? "flex" : "none") + '"><div class="row"><label>状态</label><select id="ce-status">' + allCollStatus().map(function (s) { return '<option value="' + s.key + '"' + (status === s.key ? " selected" : "") + '>' + esc(s.name) + '</option>'; }).join("") + '</select></div>' +
       '<div class="row"><label>价格</label><input type="text" id="ce-price" placeholder="如 12.9" value="' + (it ? esc(it.price || "") : "") + '"></div></div>' +
       '<div class="form-actions"><button class="btn-secondary" id="ce-cancel">取消</button><button class="btn-primary" id="ce-save">保存</button></div>';
     openModal(html);
@@ -8031,29 +8491,18 @@ function defaultData() {
       if (spRow) spRow.style.display = (this.value === "snack") ? "flex" : "none";
     };
 
-    var imgIn = $("ce-img");
-    if (imgIn) imgIn.onchange = function () {
-      var f = this.files && this.files[0]; if (!f) return;
-      collectionImageResize(f, function (dataUrl) { draftImg = dataUrl; updateImgPreview(); });
-    };
-    function updateImgPreview() {
-      var prev = $("ce-img-prev");
-      if (draftImg) { prev.src = draftImg; prev.style.display = "inline-block"; }
-      else { prev.style.display = "none"; }
-    }
-    var rmImg = $("ce-img-rm");
-    if (rmImg) rmImg.onclick = function () { draftImg = null; updateImgPreview(); this.style.display = "none"; };
-
     $("ce-cancel").onclick = closeModal;
     $("ce-save").onclick = function () {
       var name = $("ce-name").value.trim();
       if (!name) { toast("请填写名称"); return; }
       var isSnack = $("ce-cat").value === "snack";
+      /* 状态与「零食」强绑定数据清洗（PRD 补充 3）：非零食分类强制 status 置空，杜绝脏数据 */
+      var statusVal = (isSnack && $("ce-status")) ? $("ce-status").value : "";
       var obj = {
         id: it ? it.id : uid(), name: name, cat: $("ce-cat").value, sub: $("ce-sub").value,
-        status: $("ce-status") ? $("ce-status").value : "", price: $("ce-price") ? $("ce-price").value.trim() : "", purchaseDate: "",
+        status: statusVal, price: isSnack ? ($("ce-price") ? $("ce-price").value.trim() : "") : "", purchaseDate: "",
         tags: draftTags, source: $("ce-source").value, link: $("ce-link").value.trim(),
-        img: draftImg, note: $("ce-note").value.trim(), createdAt: it ? it.createdAt : Date.now()
+        note: $("ce-note").value.trim(), createdAt: it ? it.createdAt : Date.now()
       };
       if (isSnack) obj.brand = $("ce-brand").value.trim();
       var items = collData().items;
@@ -8065,17 +8514,10 @@ function defaultData() {
 
   function openCollectionDrawer(id) {
     var it = (collData().items || []).filter(function (x) { return x.id === id; })[0]; if (!it) return;
-    var cat = collCatOf(it.cat);
-    var st = collStatusOf(it.status);
-    var priceStr = it.price ? "价格：¥" + esc(it.price) : "";
-    var dateStr = it.purchaseDate ? "购买于 " + esc(it.purchaseDate) : "";
-    var meta = [cat.name, it.sub, it.source, it.brand ? "品牌：" + esc(it.brand) : ""].filter(Boolean).join(" · ");
-    var html = '<div class="coll-drawer-img">' + (it.img ? '<img src="' + esc(it.img) + '" alt="">' : '<span>' + esc(it.name.slice(0, 8)) + '</span>') + '</div>' +
-      '<div class="coll-drawer-title">' + esc(it.name) + '</div>' +
-      '<div class="coll-status ' + esc(st.cls) + '">' + esc(st.name) + '</div>' +
-      '<div class="coll-drawer-meta">' + esc(meta) + '</div>' +
-      (priceStr || dateStr ? '<div class="coll-drawer-price">' + esc([priceStr, dateStr].filter(Boolean).join(" · ")) + '</div>' : '') +
-      (it.note ? '<div class="coll-drawer-note">' + esc(it.note) + '</div>' : '') +
+    /* 原「图片区」已整体替换为大字号详情分点（PRD 8） */
+    var html = '<div class="coll-drawer-title">' + esc(it.name) + '</div>' +
+      collFactsHtml(it, { big: true, price: true, date: true }) +
+      (it.note ? '<div class="coll-drawer-note"><span class="cdn-k">备注</span>' + esc(it.note) + '</div>' : '') +
       '<div class="coll-drawer-tags">' + (it.tags || []).map(function (t) { return '<span class="coll-tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; }).join("") + '</div>' +
       (it.link ? '<div class="coll-drawer-link"><a class="coll-drawer-link-a" data-link="' + esc(it.link) + '" onclick="event.stopPropagation();openCollectionLink(this.getAttribute(\'data-link\'));return false;">' + esc(it.link) + '</a></div>' : '') +
       '<div class="coll-drawer-actions"><button class="btn-secondary" id="cdw-edit">编辑</button><button class="btn-secondary danger" id="cdw-del">删除</button></div>';
@@ -8113,7 +8555,7 @@ function defaultData() {
     document.querySelectorAll(".coll-move-cat").forEach(function (b) {
       b.onclick = function () {
         var it = (collData().items || []).filter(function (x) { return x.id === id; })[0];
-        if (it) { it.cat = this.getAttribute("data-cat"); it.sub = ""; Store.save(); renderLifeMain(); toast("已移动"); }
+        if (it) { var ncat = this.getAttribute("data-cat"); it.cat = ncat; it.sub = ""; if (ncat !== "snack") it.status = ""; Store.save(); renderLifeMain(); toast("已移动"); }
       };
     });
   }
@@ -8163,114 +8605,283 @@ function defaultData() {
     renderTagManager();
   }
 
+  /* ========== 标签管理：五区（A分类 / B二级分类 / C状态 / D标签 / E来源） ========== */
+  function tagMgrRow(k, v, extraCls, delTip) {
+    return '<div class="ctm-row" data-k="' + esc(k) + '">' +
+      '<span class="ctm-row-name">' + esc(v) + '</span>' +
+      (extraCls ? '<span class="ctm-row-cls">' + esc(extraCls) + '</span>' : '') +
+      '<span class="ctm-row-act">' +
+        '<button class="mini-btn ctm-edit" data-k="' + esc(k) + '" data-v="' + esc(v) + '" type="button">改</button>' +
+        '<button class="mini-btn danger ctm-del" data-k="' + esc(k) + '" data-v="' + esc(v) + '" data-tip="' + esc(delTip || "") + '" type="button">删</button>' +
+      '</span>' +
+    '</div>';
+  }
   function renderTagManager() {
+    var c = collData();
     var tags = collectionAllTags();
-    var checked = Array.from(document.querySelectorAll(".coll-tmgr-item input:checked")).map(function (x) { return x.getAttribute("data-tag"); }) || [];
-    var html = '<h3>标签管理</h3>' +
-      '<div class="coll-tmgr-hint">按使用次数排序。点击标签名可筛选；勾选多个后可批量合并或删除。</div>' +
-      '<div class="coll-tmgr-bar">' +
-        '<label class="coll-tmgr-checkall"><input type="checkbox" id="tmgr-checkall"> 全选</label>' +
-        '<span class="coll-tmgr-count">已选 ' + checked.length + ' 个</span>' +
-      '</div>' +
-      '<div class="coll-tmgr-list">' + tags.map(function (t) {
-        var isChecked = checked.indexOf(t.name) >= 0 ? " checked" : "";
-        return '<div class="coll-tmgr-item" data-tag="' + esc(t.name) + '">' +
-          '<label class="coll-tmgr-check"><input type="checkbox" data-tag="' + esc(t.name) + '"' + isChecked + '></label>' +
-          '<span class="coll-tmgr-name">' + esc(t.name) + '</span>' +
-          '<span class="coll-tmgr-cnt">' + t.count + ' 次</span>' +
-          '<div class="coll-tmgr-actions">' +
-            '<button class="mini-btn tmgr-rename" data-tag="' + esc(t.name) + '">重命名</button>' +
-            '<button class="mini-btn danger tmgr-delone" data-tag="' + esc(t.name) + '">删除</button>' +
-          '</div>' +
+    /* A-分类 */
+    var catRows = allCollCats().map(function (x) {
+      var n = (c.items || []).filter(function (it) { return it.cat === x.key; }).length;
+      return tagMgrRow(x.key, x.name, "内含 " + n + " 条", "删除该分类后，其中收藏将移入「未分类」。");
+    }).join("");
+    /* B-二级分类：按分类分组列出 */
+    var subHtml = allCollCats().map(function (x) {
+      var subs = c.catSubs && c.catSubs[x.key] && c.catSubs[x.key].length ? c.catSubs[x.key] : (x.subs || []);
+      if (!subs.length) return "";
+      return '<div class="ctm-subgroup"><div class="ctm-subg-h"><span>' + esc(x.name) + '</span>' +
+        '<button class="mini-btn ctm-subadd" data-cat="' + esc(x.key) + '" type="button">+ 添加</button></div>' +
+        subs.map(function (s) { return tagMgrRow(x.key + "::" + s, s, "", "删除该二级分类，相关收藏将不再显示该二级分类。"); }).join("") +
         '</div>';
-      }).join("") + '</div>' +
-      '<div class="coll-batchbar">' +
-        '<button class="mini-btn" id="tmgr-merge"' + (checked.length < 2 ? ' disabled' : '') + '>把选中的标签合并到第一个</button>' +
-        '<button class="mini-btn danger" id="tmgr-del"' + (!checked.length ? ' disabled' : '') + '>删除选中的标签</button>' +
+    }).join("");
+    /* C-状态 */
+    var stRows = allCollStatus().map(function (s) {
+      var n = (c.items || []).filter(function (it) { return it.status === s.key; }).length;
+      return tagMgrRow("st::" + s.key, s.name, (s.builtin ? "" : "自定义 · ") + n + " 条", s.builtin ? "删除后该状态下的收藏将回到默认状态。" : "删除该自定义状态，其收藏将回到默认状态。");
+    }).join("");
+    /* D-标签（回车即存） */
+    var tagRows = tags.map(function (t) {
+      return '<div class="ctm-row" data-k="tag::' + esc(t.name) + '">' +
+        '<span class="ctm-row-name">' + esc(t.name) + '</span>' +
+        '<span class="ctm-row-cls">' + t.count + ' 次</span>' +
+        '<span class="ctm-row-act">' +
+          '<button class="mini-btn ctm-edit" data-k="tag::' + esc(t.name) + '" data-v="' + esc(t.name) + '" type="button">改</button>' +
+          '<button class="mini-btn danger ctm-del" data-k="tag::' + esc(t.name) + '" data-v="' + esc(t.name) + '" data-tip="删除该标签将从所有收藏中移除。" type="button">删</button>' +
+        '</span>' +
+      '</div>';
+    }).join("");
+    /* E-来源（手动维护；已在使用中但不在清单里的也会补进来） */
+    var srcRows = allCollSources().map(function (s) {
+      var n = (c.items || []).filter(function (it) { return it.source === s; }).length;
+      return tagMgrRow("src::" + s, s, (n ? n + " 条" : "未使用"), "删除该来源，相关收藏的来源将清空。");
+    }).join("");
+
+    var html = '<h3>标签管理</h3>' +
+      '<div class="coll-tmgr-hint">统一管理分类、二级分类、状态、标签与来源。删除分类/来源时会同步处理相关收藏。</div>' +
+      '<div class="ctm-zone">' +
+        '<div class="ctm-zone-h"><span class="ctm-zone-t">A · 分类</span><button class="mini-btn ctm-add" data-z="cat" type="button">+ 添加</button></div>' +
+        (catRows || '<div class="ctm-empty">暂无分类</div>') +
+      '</div>' +
+      '<div class="ctm-zone">' +
+        '<div class="ctm-zone-h"><span class="ctm-zone-t">B · 二级分类</span><button class="mini-btn ctm-subadd" data-cat="snack" type="button">+ 添加</button></div>' +
+        (subHtml || '<div class="ctm-empty">暂无二级分类</div>') +
+      '</div>' +
+      '<div class="ctm-zone">' +
+        '<div class="ctm-zone-h"><span class="ctm-zone-t">C · 状态</span><button class="mini-btn ctm-add" data-z="status" type="button">+ 添加</button></div>' +
+        (stRows || '<div class="ctm-empty">暂无状态</div>') +
+      '</div>' +
+      '<div class="ctm-zone">' +
+        '<div class="ctm-zone-h"><span class="ctm-zone-t">D · 标签（回车即存）</span></div>' +
+        '<div class="ctm-addrow"><input type="text" id="ctm-taginput" placeholder="输入标签名后按回车添加" autocomplete="off" spellcheck="false"></div>' +
+        (tagRows || '<div class="ctm-empty">暂无标签</div>') +
+      '</div>' +
+      '<div class="ctm-zone">' +
+        '<div class="ctm-zone-h"><span class="ctm-zone-t">E · 来源平台</span><button class="mini-btn ctm-add" data-z="source" type="button">+ 添加</button></div>' +
+        (srcRows || '<div class="ctm-empty">暂无来源</div>') +
       '</div>' +
       '<div class="form-actions"><button class="btn-secondary" id="tmgr-close">完成</button></div>';
     openModal(html);
     bindTagManagerHandlers();
   }
 
+  /* 分类改名/删除（含内容迁移）、二级分类覆盖表、状态改名、标签改删、来源改删 */
+  function tmgrRenameCat(key, newName) {
+    var c = collData();
+    if (!c.catNames) c.catNames = {};
+    c.catNames[key] = newName;
+    Store.save(); renderLifeMain(); renderTagManager(); toast("已重命名");
+  }
+  function tmgrDelCat(key, name) {
+    var c = collData();
+    var cnt = (c.items || []).filter(function (it) { return it.cat === key; }).length;
+    var tip = (key === "uncat") ? "「未分类」是系统保留分类，不能删除。" : (cnt ? '删除后，其中 ' + cnt + ' 条收藏将移入「未分类」。' : "删除该分类。");
+    if (key === "uncat") { toast(tip); return; }
+    openConfirmModal("删除分类？", '确定删除分类「' + name + '」？' + tip, function () {
+      c.customCats = (c.customCats || []).filter(function (x) { return x.key !== key; });
+      if ((c.catNames || {}).hasOwnProperty(key)) delete c.catNames[key];
+      if ((c.catSubs || {}).hasOwnProperty(key)) delete c.catSubs[key];
+      if ((c.hiddenCats || []).indexOf(key) < 0) c.hiddenCats.push(key);
+      (c.items || []).forEach(function (it) { if (it.cat === key) { it.cat = "uncat"; it.sub = ""; it.status = ""; } });   // 迁到未分类同时清空状态（防脏数据）
+      Store.save(); renderLifeMain(); renderTagManager(); toast("已删除");
+    });
+  }
+  function tmgrRenameStatus(key, newName) {
+    var c = collData();
+    if (!c.statusNames) c.statusNames = {};
+    c.statusNames[key] = newName;
+    Store.save(); renderLifeMain(); renderTagManager(); toast("已重命名");
+  }
+  function tmgrDelStatus(key) {
+    var c = collData();
+    var builtin = COLL_STATUS.some(function (s) { return s.key === key; });
+    var isDefault = !COLL_STATUS.some(function (s) { return s.key === key; }) && !(c.customStatus || []).some(function (s) { return s.key === key; });
+    if (builtin && key === "want") { toast("「想买」是默认状态，不能删除。"); return; }
+    openConfirmModal("删除状态？", '删除该状态后，其下收藏将回到默认状态「想买」。', function () {
+      if (builtin) { if ((c.hiddenStatus || []).indexOf(key) < 0) c.hiddenStatus.push(key); }
+      else c.customStatus = (c.customStatus || []).filter(function (s) { return s.key !== key; });
+      if ((c.statusNames || {}).hasOwnProperty(key)) delete c.statusNames[key];
+      (c.items || []).forEach(function (it) { if (it.status === key) it.status = "want"; });
+      Store.save(); renderLifeMain(); renderTagManager(); toast("已删除");
+    });
+  }
+  function tmgrRenameTag(oldName, newName) {
+    (collData().items || []).forEach(function (it) {
+      it.tags = (it.tags || []).map(function (t) { return t === oldName ? newName : t; });
+    });
+    Store.save(); renderLifeMain(); renderTagManager(); toast("已重命名");
+  }
+  function tmgrDelTag(name) {
+    openConfirmModal("删除标签？", '删除标签「' + name + '」将从所有收藏中移除。', function () {
+      (collData().items || []).forEach(function (it) {
+        it.tags = (it.tags || []).filter(function (t) { return t !== name; });
+      });
+      Store.save(); renderLifeMain(); renderTagManager(); toast("已删除");
+    });
+  }
+  function tmgrRenameSource(oldName, newName) {
+    var c = collData();
+    if (c.sourceList.indexOf(oldName) < 0) c.sourceList.push(oldName);
+    c.sourceList = c.sourceList.map(function (s) { return s === oldName ? newName : s; });
+    (c.items || []).forEach(function (it) { if (it.source === oldName) it.source = newName; });
+    Store.save(); renderLifeMain(); renderTagManager(); toast("已重命名");
+  }
+  function tmgrDelSource(name) {
+    var c = collData();
+    var n = (c.items || []).filter(function (it) { return it.source === name; }).length;
+    openConfirmModal("删除来源？", (n ? '删除后，' + n + ' 条收藏的来源将清空。' : '删除该来源。'), function () {
+      c.sourceList = c.sourceList.filter(function (s) { return s !== name; });
+      (c.items || []).forEach(function (it) { if (it.source === name) it.source = ""; });
+      Store.save(); renderLifeMain(); renderTagManager(); toast("已删除");
+    });
+  }
   function bindTagManagerHandlers() {
     $("tmgr-close").onclick = closeModal;
 
-    var checkAll = $("tmgr-checkall");
-    if (checkAll) {
-      checkAll.onclick = function () {
-        var checked = this.checked;
-        document.querySelectorAll(".coll-tmgr-item input[type=checkbox]").forEach(function (cb) { cb.checked = checked; });
-        renderTagManager();
+    /* 添加：A-分类 / C-状态 / E-来源（prompt 方式，统一风格） */
+    document.querySelectorAll(".ctm-add[data-z]").forEach(function (b) {
+      b.onclick = function () {
+        var z = this.getAttribute("data-z");
+        if (z === "cat") {
+          var name = prompt("请输入新分类名称："); if (!name) return;
+          name = name.trim(); if (!name) return;
+          var c = collData();
+          if (allCollCats().some(function (x) { return x.name === name; })) { toast("该分类已存在"); return; }
+          c.customCats.push({ key: "cat_" + Date.now(), name: name, subs: [] });
+          Store.save(); renderLifeMain(); renderTagManager(); toast("已新增分类");
+        } else if (z === "status") {
+          var sn = prompt("请输入新状态名称（如：已买、已读）："); if (!sn) return;
+          sn = sn.trim(); if (!sn) return;
+          var c2 = collData();
+          if (allCollStatus().some(function (s) { return s.name === sn; })) { toast("该状态已存在"); return; }
+          c2.customStatus.push({ key: "st_" + Date.now(), name: sn, cls: "coll-status-custom" });
+          Store.save(); renderLifeMain(); renderTagManager(); toast("已新增状态");
+        } else if (z === "source") {
+          var src = prompt("请输入来源平台名称（如：京东、得物）："); if (!src) return;
+          src = src.trim(); if (!src) return;
+          var c3 = collData();
+          if (c3.sourceList.indexOf(src) >= 0) { toast("该来源已存在"); return; }
+          c3.sourceList.push(src);
+          Store.save(); renderLifeMain(); renderTagManager(); toast("已新增来源");
+        }
+      };
+    });
+
+    /* 添加：B-二级分类（选中一个分类添加） */
+    document.querySelectorAll(".ctm-subadd").forEach(function (b) {
+      b.onclick = function () {
+        var catKey = this.getAttribute("data-cat");
+        var cat = collCatOf(catKey);
+        var sn = prompt('为分类「' + cat.name + '」添加二级分类：');
+        if (!sn) return;
+        sn = sn.trim(); if (!sn) return;
+        var c = collData();
+        var list = (c.catSubs && c.catSubs[catKey]) ? c.catSubs[catKey] : cat.subs.slice();
+        if (list.indexOf(sn) >= 0) { toast("该二级分类已存在"); return; }
+        list.push(sn);
+        if (!c.catSubs) c.catSubs = {};
+        c.catSubs[catKey] = list;
+        Store.save(); renderLifeMain(); renderTagManager(); toast("已添加");
+      };
+    });
+
+    /* D-标签：回车即存 */
+    var tagInput = $("ctm-taginput");
+    if (tagInput) {
+      tagInput.onkeydown = function (e) {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key !== "Enter") return;
+        var v = this.value.trim(); if (!v) return;
+        var c = collData();
+        var cur = collectionAllTags().map(function (t) { return t.name; });
+        if (cur.indexOf(v) >= 0) { toast("该标签已存在"); return; }
+        /* 新标签需要挂到某条收藏上才会被统计：挂到最新一条收藏；若无收藏则新建一条「标签占位」收藏 */
+        var items = c.items || [];
+        if (items.length) { items[0].tags = (items[0].tags || []).concat([v]); }
+        else {
+          c.items = c.items || [];
+          c.items.unshift({ id: uid(), name: "待补充的收藏", cat: "uncat", sub: "", status: "want", tags: [v], source: "", link: "", note: "", createdAt: Date.now() });
+        }
+        Store.save(); renderLifeMain(); renderTagManager();
+        /* 重建后重新聚焦输入框，方便连续录入多个标签 */
+        var ni = $("ctm-taginput");
+        if (ni) { ni.value = ""; setTimeout(function () { try { ni.focus(); } catch (err) {} }, 30); }
+        toast("已添加标签");
       };
     }
 
-    document.querySelectorAll(".coll-tmgr-item input[type=checkbox]").forEach(function (cb) {
-      cb.onclick = function () { renderTagManager(); };
-    });
-
-    document.querySelectorAll(".coll-tmgr-name").forEach(function (el) {
-      el.onclick = function () {
-        collData().filterTag = this.textContent;
-        closeModal(); renderLifeMain();
+    /* 改：分类 / 状态 / 标签 / 来源 */
+    document.querySelectorAll(".ctm-edit").forEach(function (b) {
+      b.onclick = function () {
+        var k = this.getAttribute("data-k");
+        var v = this.getAttribute("data-v");
+        if (k.indexOf("tag::") === 0) {
+          var nt = prompt('重命名标签「' + v + '」为：', v);
+          if (!nt || nt.trim() === v) return;
+          nt = nt.trim(); if (!nt) return;
+          tmgrRenameTag(v, nt);
+        } else if (k.indexOf("src::") === 0) {
+          var ns = prompt('重命名来源「' + v + '」为：', v);
+          if (!ns || ns.trim() === v) return;
+          ns = ns.trim(); if (!ns) return;
+          tmgrRenameSource(v, ns);
+        } else if (k.indexOf("st::") === 0) {
+          var nst = prompt('重命名状态「' + v + '」为：', v);
+          if (!nst || nst.trim() === v) return;
+          nst = nst.trim(); if (!nst) return;
+          tmgrRenameStatus(k.slice(4), nst);
+        } else {
+          var nn = prompt('重命名分类「' + v + '」为：', v);
+          if (!nn || nn.trim() === v) return;
+          nn = nn.trim(); if (!nn) return;
+          tmgrRenameCat(k, nn);
+        }
       };
     });
 
-    document.querySelectorAll(".tmgr-rename").forEach(function (b) {
-      b.onclick = function (e) {
-        e.stopPropagation();
-        var oldName = this.getAttribute("data-tag");
-        var newName = prompt('把标签 "' + oldName + '" 重命名为：', oldName);
-        if (!newName || newName === oldName) return;
-        newName = newName.trim(); if (!newName) return;
-        (collData().items || []).forEach(function (it) {
-          it.tags = (it.tags || []).map(function (t) { return t === oldName ? newName : t; });
-        });
-        Store.save(); renderLifeMain(); renderTagManager(); toast("已重命名");
-      };
-    });
-
-    document.querySelectorAll(".tmgr-delone").forEach(function (b) {
-      b.onclick = function (e) {
-        e.stopPropagation();
-        var name = this.getAttribute("data-tag");
-        openConfirmModal("删除标签？", '删除标签 "' + name + '"？', function () {
-          (collData().items || []).forEach(function (it) {
-            it.tags = (it.tags || []).filter(function (t) { return t !== name; });
+    /* 删：分类 / 二级分类 / 状态 / 标签 / 来源 */
+    document.querySelectorAll(".ctm-del").forEach(function (b) {
+      b.onclick = function () {
+        var k = this.getAttribute("data-k");
+        var v = this.getAttribute("data-v");
+        var tip = this.getAttribute("data-tip") || "";
+        if (k.indexOf("tag::") === 0) { tmgrDelTag(v); }
+        else if (k.indexOf("src::") === 0) { tmgrDelSource(v); }
+        else if (k.indexOf("st::") === 0) { tmgrDelStatus(k.slice(4)); }
+        else if (k.indexOf("::") > 0) {
+          /* 二级分类：catKey::sub */
+          var catKey = k.split("::")[0], sub = v;
+          var c = collData();
+          var cat = collCatOf(catKey);
+          var list = (c.catSubs && c.catSubs[catKey]) ? c.catSubs[catKey] : cat.subs.slice();
+          openConfirmModal("删除二级分类？", '删除「' + sub + '」后，该分类下的相关收藏不再显示此二级分类。', function () {
+            list = list.filter(function (s) { return s !== sub; });
+            if (!c.catSubs) c.catSubs = {};
+            c.catSubs[catKey] = list;
+            (c.items || []).forEach(function (it) { if (it.cat === catKey && it.sub === sub) it.sub = ""; });
+            Store.save(); renderLifeMain(); renderTagManager(); toast("已删除");
           });
-          Store.save(); renderLifeMain(); renderTagManager(); toast("已删除");
-        });
+        } else { tmgrDelCat(k, v); }
       };
     });
-
-    var mergeBtn = $("tmgr-merge");
-    if (mergeBtn) {
-      mergeBtn.onclick = function () {
-        var checked = Array.from(document.querySelectorAll(".coll-tmgr-item input:checked")).map(function (x) { return x.getAttribute("data-tag"); });
-        if (checked.length < 2) { toast("至少选两个标签"); return; }
-        var target = checked[0];
-        openConfirmModal("合并标签？", '将 "' + checked.slice(1).join('、') + '" 合并到 "' + target + '"？', function () {
-          (collData().items || []).forEach(function (it) {
-            it.tags = (it.tags || []).map(function (t) { return checked.indexOf(t) >= 0 ? target : t; });
-          });
-          Store.save(); renderLifeMain(); renderTagManager(); toast("已合并");
-        });
-      };
-    }
-
-    var delBtn = $("tmgr-del");
-    if (delBtn) {
-      delBtn.onclick = function () {
-        var checked = Array.from(document.querySelectorAll(".coll-tmgr-item input:checked")).map(function (x) { return x.getAttribute("data-tag"); });
-        if (!checked.length) { toast("先勾选要删除的标签"); return; }
-        openConfirmModal("删除标签？", '删除标签 "' + checked.join('、') + '"？', function () {
-          (collData().items || []).forEach(function (it) {
-            it.tags = (it.tags || []).filter(function (t) { return checked.indexOf(t) < 0; });
-          });
-          Store.save(); renderLifeMain(); renderTagManager(); toast("已删除");
-        });
-      };
-    }
   }
 
   function addCollectionCategory() {
@@ -8300,10 +8911,13 @@ function defaultData() {
     c.q = ""; c.filterStatus = ""; c.filterTag = null; c.filterSource = ""; c.filterSub = null;
   }
 
+  /* 下拉刷新：仅在内容容器顶部（首屏且滚动条归零）才触发，避免与列表项左滑手势冲突（PRD 改版） */
   function bindPullRefresh(body) {
     if (body._pullBound) return;
     body._pullBound = true;
     if (!('ontouchstart' in window) && !(navigator.maxTouchPoints > 0)) return;
+    /* 手机端仅列表：左滑与下拉极易冲突，直接关闭下拉刷新（保留空状态「刷新」按钮作为替代） */
+    if (collIsMobile()) return;
     var startY = 0, pulling = false, hint = null, parent = body.parentNode;
     body.addEventListener('touchstart', function (e) {
       if (window.scrollY <= 0 && body.scrollTop <= 0) { startY = e.touches[0].clientY; pulling = true; }
@@ -8386,7 +9000,7 @@ function defaultData() {
       b.onclick = function () {
         var cat = this.getAttribute("data-cat");
         (collData().items || []).forEach(function (it) {
-          if (ids.indexOf(it.id) >= 0) { it.cat = cat; it.sub = ""; }
+          if (ids.indexOf(it.id) >= 0) { it.cat = cat; it.sub = ""; if (cat !== "snack") it.status = ""; }   // 移动到非零食分类时清空状态（防脏数据）
         });
         collData().selected = [];
         Store.save();
@@ -8400,21 +9014,29 @@ function defaultData() {
   function openCollectionBatchStatus() {
     var ids = getSelectedCollectionIds();
     if (!ids.length) { toast("请先选择收藏"); return; }
-    var html = '<h3>批量标记状态</h3><div class="coll-move-list">' +
-      COLL_STATUS.map(function (s) { return '<button class="mini-btn coll-status-set" data-status="' + s.key + '" style="width:100%;text-align:left;">' + esc(s.name) + '</button>'; }).join("") +
+    /* 状态仅适用于「零食」分类（PRD 补充 3）：批量标记只对零食条目生效，其余条目标记时强制清空脏数据 */
+    var snackCnt = (collData().items || []).filter(function (it) { return ids.indexOf(it.id) >= 0 && it.cat === "snack"; }).length;
+    var html = '<h3>批量标记状态</h3>' +
+      (snackCnt ? '<div class="coll-tmgr-hint">将对 ' + snackCnt + ' 条「零食」收藏标记状态（状态仅适用于零食分类）。</div>' : '<div class="coll-tmgr-hint">所选收藏中没有「零食」分类的条目，状态仅适用于零食。</div>') +
+      '<div class="coll-move-list">' +
+      allCollStatus().map(function (s) { return '<button class="mini-btn coll-status-set" data-status="' + s.key + '" style="width:100%;text-align:left;">' + esc(s.name) + '</button>'; }).join("") +
       '</div>';
     openModal(html);
     document.querySelectorAll(".coll-status-set").forEach(function (b) {
       b.onclick = function () {
         var status = this.getAttribute("data-status");
+        var changed = 0;
         (collData().items || []).forEach(function (it) {
-          if (ids.indexOf(it.id) >= 0) it.status = status;
+          if (ids.indexOf(it.id) >= 0) {
+            if (it.cat === "snack") { it.status = status; changed++; }
+            else it.status = "";   // 数据清洗：非零食分类强制清空
+          }
         });
         collData().selected = [];
         Store.save();
         closeModal();
         renderLifeMain();
-        toast("已标记状态");
+        toast(changed ? "已标记状态" : "所选均非「零食」，未做修改");
       };
     });
   }
@@ -8423,23 +9045,6 @@ function defaultData() {
     var ids = getSelectedCollectionIds();
     if (!ids.length) { toast("请先选择收藏"); return; }
     confirmDeleteCollection(ids);
-  }
-
-  function collectionImageResize(file, cb) {
-    var rd = new FileReader();
-    rd.onload = function () {
-      var img = new Image();
-      img.onload = function () {
-        var w = img.width, h = img.height, maxW = 720;
-        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
-        var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
-        cv.getContext("2d").drawImage(img, 0, 0, w, h);
-        try { var data = cv.toDataURL("image/jpeg", 0.72); if (!data || data.indexOf("data:image") !== 0) throw new Error("compress-empty"); cb(data); } catch (e) { cb(rd.result); }
-      };
-      img.onerror = function () { cb(rd.result); };
-      img.src = rd.result;
-    };
-    rd.readAsDataURL(file);
   }
 
   /* ============ 标签点击筛选 / 列表操作 ============ */
@@ -8511,6 +9116,8 @@ function defaultData() {
     if (_navSheetOpen && !_keepSheet) closeNavSheet();
     applyGlass();
     applyAllRegionBgs();
+    /* 「新建收藏」FAB 仅限「生活 → 云收藏柜」显示，切换任何导航页时同步隐藏（PRD 补充） */
+    updateCollectionFab();
   }
   function openHelp() {
     var d = Store.data || {};
@@ -9614,7 +10221,6 @@ function defaultData() {
         if (state.entSub === "novel") { renderEntList(); } else renderInspList();
       });
     }
-    console.log("[DBG] after subs bind, n-add el:", !!$("n-add"));
     $("n-add").onclick = function () { showNovelForm(null); };
     $("n-tag-manage-top").onclick = showTagManager;
     /* 娱乐区·选项卡样式取色（修复：原先误绑在 renderSettings，娱乐区直接点击无效） */
