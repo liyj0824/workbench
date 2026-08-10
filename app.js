@@ -9246,14 +9246,9 @@ function defaultData() {
       iconSel.value = Store.data.settings.iconStyle;
     }
     iconSel.onchange = function () { Store.data.settings.iconStyle = this.value; Store.save(); renderBottomNav(); };
-    /* 2026-08-06：界面字体已移除「方正小标宋简」选项，旧数据若仍存 xbsong 则迁移回 宋体(song) */
-    if (Store.data.settings.fontStyle === "xbsong") { Store.data.settings.fontStyle = "song"; Store.save(); }
-    /* 2026-08-09：移除「楷体」选项，旧数据若仍存 kai 则迁移回 宋体(song) */
-    if (Store.data.settings.fontStyle === "kai") { Store.data.settings.fontStyle = "song"; Store.save(); }
-    /* 2026-08-10：移除「仿宋」选项，旧数据若仍存 fang 则迁移回 宋体(song) */
-    if (Store.data.settings.fontStyle === "fang") { Store.data.settings.fontStyle = "song"; Store.save(); }
-    $("set-font").value = Store.data.settings.fontStyle || "song";
-    $("set-font").onchange = function () { Store.data.settings.fontStyle = this.value; Store.save(); applyFont(); };
+    /* 2026-08-10：移除「界面字体」整行（仅剩宋体一项，无意义）；字体固定为宋体(song)，applyFont 默认即 song */
+    /* 2026-08-06/08-09：早期移除的 xbsong/kai 旧数据若残留，静默迁移回 song，避免脏数据 */
+    if (Store.data.settings.fontStyle && Store.data.settings.fontStyle !== "song") { Store.data.settings.fontStyle = "song"; Store.save(); }
     $("set-globalbg").onclick = function () { openBgPicker(function (r) { Store.data.settings.globalBg = r; Store.save(); applyBg(document.body, r); applyAllRegionBgs(); applyGlass(); }, { current: Store.data.settings.globalBg, title: "全局底图背景" }); };
     $("set-navcolor").onclick = function () { openColorPicker(Store.data.settings.navColor, function (c) { Store.data.settings.navColor = c; Store.save(); renderBottomNav(); }, { note: "默认色：深绿 #5f7a5a（想找回此色，颜色代码输入 #5f7a5a）" }); };
     $("set-navmode").value = Store.data.settings.navMode || "strip";
