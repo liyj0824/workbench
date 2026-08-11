@@ -9394,7 +9394,11 @@ function defaultData() {
     if (el) { el.textContent = msg; el.style.color = isError ? "#b87a72" : "#5f7a5a"; }
   }
   async function cloudSyncTest() {
+    var cloudUrl = $("set-cloud-url"), cloudKey = $("set-cloud-key");
     var cfg = getCloudSyncCfg();
+    if (cloudUrl) cfg.url = cloudUrl.value.trim();
+    if (cloudKey) cfg.key = cloudKey.value.trim();
+    Store.save();
     if (!cfg.url || !cfg.key) { setCloudSyncStatus("请先填写 Project URL 和 anon key", true); return; }
     try {
       var resp = await fetch(cfg.url + "/rest/v1/workbench_sync?limit=1", { method: "GET", headers: getSupabaseHeaders(cfg.key) });
@@ -9404,7 +9408,12 @@ function defaultData() {
     } catch (e) { setCloudSyncStatus("连接失败：" + e.message, true); }
   }
   async function cloudSyncPush() {
+    var cloudUrl = $("set-cloud-url"), cloudKey = $("set-cloud-key"), cloudCode = $("set-cloud-code");
     var cfg = getCloudSyncCfg();
+    if (cloudUrl) cfg.url = cloudUrl.value.trim();
+    if (cloudKey) cfg.key = cloudKey.value.trim();
+    if (cloudCode) cfg.code = cloudCode.value;
+    Store.save();
     if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
     if (cfg.code.length < 8) { setCloudSyncStatus("同步码建议至少 8 位", true); return; }
     try {
@@ -9427,7 +9436,12 @@ function defaultData() {
     } catch (e) { setCloudSyncStatus("推送失败：" + e.message, true); }
   }
   async function cloudSyncPull() {
+    var cloudUrl = $("set-cloud-url"), cloudKey = $("set-cloud-key"), cloudCode = $("set-cloud-code");
     var cfg = getCloudSyncCfg();
+    if (cloudUrl) cfg.url = cloudUrl.value.trim();
+    if (cloudKey) cfg.key = cloudKey.value.trim();
+    if (cloudCode) cfg.code = cloudCode.value;
+    Store.save();
     if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
     try {
       var userId = await hashSyncCode(cfg.code);
