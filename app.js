@@ -9695,7 +9695,7 @@ function defaultData() {
         openInfoModal("云端同步（Supabase）说明",
           '<div style="line-height:1.7;">'
           + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">1. Project URL（门牌号）</b><br>这是你专属云数据库的地址，形如 <code>https://xxxxx.supabase.co</code>。仅需首次配置时填写一次，请务必核对无误。</div>'
-          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">2. anon key（公开密钥）</b><br>这是访问数据库的钥匙，形如 <code>eyJ...</code>。同样只需填写一次，注意保护它不被泄露给无关人员。</div>'
+          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">2. anon / publishable key（公开密钥）</b><br>这是访问数据库的钥匙，形如 <code>eyJ...</code> 或新版 <code>sb_publishable_...</code>。同样只需填写一次，注意保护它不被泄露给无关人员。</div>'
           + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">3. 同步码（加密密码）</b><br>这是你自定义的 8 位以上密码，用于数据加密。电脑和手机端必须完全一致才能互相解密。<br><span style="color:#b00020;">⚠️ 重要提醒：谁拿到同步码就能查看你的数据，请务必妥善保管。一旦遗忘，云端数据将无法恢复。</span></div>'
           + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">4. 保存链接并测试（首次连接）</b><br>配置好前三项后，点击此按钮保存并检测网络连通性。连接成功会提示成功，失败请检查 URL 和密钥是否正确。</div>'
           + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">5. 推送同步（本地上传）</b><br>将当前设备的数据加密上传至云端，会覆盖云端的旧数据。建议在电脑端修改大量数据后使用，上传前请确认云端数据已备份。</div>'
