@@ -3486,6 +3486,75 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
   .coll-facts.big .cf-k { flex-basis: 64px; }
   .modal-x { width: 44px; height: 44px; font-size: 17px; }   /* 手机端：更大的触控关闭按钮（44px） */
   .modal-xwrap { top: 0; }
+
+  /* 手机端记账：水平日期切换改为垂直滑动字轮，左侧九色鹿虚影 */
+  .rc-toolbar { justify-content: center; padding-right: 64px; }   /* 字轮整体居中，右侧预留标签管理按钮宽度避免重合 */
+  .rc-toolbar .rc-range { display: none; }
+  .rc-toolbar .rc-tag-btn { right: -12px; }   /* 标签管理右移，右竖边对齐小票（小票外边距6px vs 工具栏18px，差12px） */
+  .rc-range-mobile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+  }
+  .rc-range-mobile .rc-deer {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    pointer-events: none;
+    opacity: .55;
+    filter: blur(1px) saturate(.95) brightness(1.03) contrast(1.02) drop-shadow(0 0 12px rgba(255,236,185,.5));
+    animation: deerFloat 3.2s ease-in-out infinite;
+    flex: 0 0 auto;
+  }
+  @keyframes deerFloat {
+    0%   { transform: translate(0, 0); }
+    12%  { transform: translate(-1px, -1px); }
+    45%  { transform: translate(-6px, -8px); }   /* 向左上跃起（向前跳） */
+    62%  { transform: translate(-7px, -6px); }   /* 最高点偏左上 */
+    86%  { transform: translate(-2px, -2px); }
+    100% { transform: translate(0, 0); }
+  }
+  .rc-range-mobile .rc-wheel {
+    width: 84px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: 999px;
+    border: 1.5px solid #c9d6c0;
+    background: rgba(255,255,255,.72);
+    box-shadow:
+      inset 0 0 10px rgba(201,214,192,.35),
+      0 3px 8px rgba(120,110,80,.10);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    touch-action: none;
+  }
+  .rc-range-mobile .rc-wheel-track {
+    display: flex;
+    flex-direction: column;
+    will-change: transform;
+  }
+  .rc-range-mobile .rc-wheel-item {
+    height: 40px;
+    line-height: 40px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 800;
+    color: #9fb393;
+    font-family: var(--ui-font);
+    opacity: .55;
+    transition: opacity .18s, color .18s, transform .18s;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .rc-range-mobile .rc-wheel-item.on {
+    color: #5f7a5a;
+    opacity: 1;
+    transform: scale(1.06);
+  }
 }
 
 /* ============ 生活模块增强：经期/用药/备忘/穿衣 ============ */
@@ -3781,6 +3850,11 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
 }
 .rc-tag-btn:hover { transform: translateY(-1px); }
 .rc-tag-btn:active { transform: translateY(1px); }
+
+/* 手机端垂直字轮：仅在桌面端隐藏；在手机媒体查询中显示 */
+@media (min-width: 641px) {
+  .rc-range-mobile { display: none; }
+}
 
 /* ===== 记账标签管理弹窗：底部两个按钮居中加长（莫兰迪粘土风） ===== */
 #atm-add,

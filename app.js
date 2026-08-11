@@ -436,7 +436,7 @@ function defaultData() {
     }
   };
 
-  var state = { tab: "home", cat: 0, mod: 0, phase: "basic", entSub: "novel", entFilter: null, entSearch: "", lifeSel: "weather", accFilter: { type: null, channel: null, tag: null }, accRange: "month", accType: "", wardrobeFilter: { season: null, category: null }, travelSel: null, travelSub: "itinerary", spotViewMode: "all", memoView: "todo", memoSort: "date" };
+  var state = { tab: "home", cat: 0, mod: 0, phase: "basic", entSub: "novel", entFilter: null, entSearch: "", lifeSel: "weather", accFilter: { type: null, channel: null, tag: null }, accRange: "day", accType: "", wardrobeFilter: { season: null, category: null }, travelSel: null, travelSub: "itinerary", spotViewMode: "all", memoView: "todo", memoSort: "date" };
 
   /* ============ 取色器 ============ */
   function hsvToRgb(h, s, v) {
@@ -5685,6 +5685,16 @@ function defaultData() {
               '<button class="rc-range-btn on" data-range="month">本月</button>' +
               '<button class="rc-range-btn" data-range="year">本年</button>' +
             '</div>' +
+            '<div class="rc-range-mobile" id="rc-range-mobile">' +
+              '<img class="rc-deer" src="assets/deer-dunhuang.png" alt="" aria-hidden="true">' +
+              '<div class="rc-wheel" id="rc-wheel">' +
+                '<div class="rc-wheel-track" id="rc-wheel-track">' +
+                  '<div class="rc-wheel-item on" data-range="day">本日</div>' +
+                  '<div class="rc-wheel-item" data-range="month">本月</div>' +
+                  '<div class="rc-wheel-item" data-range="year">本年</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
             '<button class="rc-tag-btn" id="acc-tagmgr">标签管理</button>' +
           '</div>' +
          '<div class="rc-summary" id="rc-summary"></div>' +
@@ -5759,6 +5769,16 @@ function defaultData() {
     var sub = $("rc-sub"); if (sub) sub.textContent = rcRangeLabel(range);
     var rangeBox = $("rc-range");
     if (rangeBox) rangeBox.querySelectorAll(".rc-range-btn").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-range") === range); });
+    var wheelTrack = $("rc-wheel-track");
+    if (wheelTrack) {
+      var wheelItems = Array.from(wheelTrack.querySelectorAll(".rc-wheel-item"));
+      var idx = wheelItems.findIndex(function (el) { return el.getAttribute("data-range") === range; });
+      var itemH = 40;
+      try { itemH = wheelItems[0] && wheelItems[0].offsetHeight || 40; } catch (e) {}
+      wheelTrack.style.transition = "transform .25s cubic-bezier(.22,.61,.36,1)";
+      wheelTrack.style.transform = "translateY(-" + (idx * itemH) + "px)";
+      wheelItems.forEach(function (el, i) { el.classList.toggle("on", i === idx); });
+    }
     var typeBox = $("rc-types");
     if (typeBox) typeBox.querySelectorAll(".rc-type").forEach(function (b) { b.classList.toggle("on", (b.getAttribute("data-type") || "") === type); });
     var sum = $("rc-summary");
@@ -5783,7 +5803,7 @@ function defaultData() {
       if (range === "year") return p.y === cy;
       return true;
     });
-    list.sort(function (a, b) { return ymdCmp(b.date, a.date) || (b.id < a.id ? -1 : 1); });
+    list.sort(function (a, b) { return ymdCmp(b.date, a.date) || (a.id < b.id ? -1 : 1); });
     var ul = $("acc-list"); if (!ul) return;
     ul.innerHTML = "";
     if (!list.length) {
@@ -6052,11 +6072,61 @@ function defaultData() {
     if (rangeBox) rangeBox.querySelectorAll(".rc-range-btn").forEach(function (b) {
       b.onclick = function () { state.accRange = b.getAttribute("data-range"); renderAccountTop(); renderAccountList(); };
     });
+    bindAccountWheel();
     var typeBox = $("rc-types");
     if (typeBox) typeBox.querySelectorAll(".rc-type").forEach(function (b) {
       b.onclick = function () { state.accType = b.getAttribute("data-type") || ""; renderAccountTop(); renderAccountList(); };
     });
     renderAccountTop(); renderAccountList();
+  }
+  function bindAccountWheel() {
+    var wheel = $("rc-wheel"); var track = $("rc-wheel-track");
+    if (!wheel || !track) return;
+    var items = Array.from(track.querySelectorAll(".rc-wheel-item"));
+    var ranges = items.map(function (el) { return el.getAttribute("data-range"); });
+    var currentIdx = Math.max(0, ranges.indexOf(state.accRange));
+    var itemH = 40;
+    function syncUI(animate) {
+      track.style.transition = animate ? "transform .25s cubic-bezier(.22,.61,.36,1)" : "none";
+      track.style.transform = "translateY(-" + (currentIdx * itemH) + "px)";
+      items.forEach(function (el, i) { el.classList.toggle("on", i === currentIdx); });
+    }
+    try { itemH = items[0] && items[0].offsetHeight || 40; } catch (e) {}
+    syncUI(false);
+    var startY = 0, currentY = 0, dragging = false;
+    wheel.addEventListener("pointerdown", function (e) {
+      dragging = true; startY = e.clientY; currentY = startY;
+      wheel.setPointerCapture(e.pointerId);
+      track.style.transition = "none";
+    });
+    wheel.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      e.preventDefault();
+      currentY = e.clientY;
+      var dy = currentY - startY;
+      track.style.transform = "translateY(" + (-currentIdx * itemH + dy) + "px)";
+    });
+    wheel.addEventListener("pointerup", function () {
+      if (!dragging) return; dragging = false;
+      var dy = currentY - startY;
+      if (dy < -36 && currentIdx < items.length - 1) currentIdx++;
+      else if (dy > 36 && currentIdx > 0) currentIdx--;
+      state.accRange = ranges[currentIdx];
+      syncUI(true);
+      renderAccountTop(); renderAccountList();
+    });
+    wheel.addEventListener("pointercancel", function () {
+      if (!dragging) return; dragging = false;
+      syncUI(true);
+    });
+    wheel.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      if (e.deltaY > 20 && currentIdx < items.length - 1) currentIdx++;
+      else if (e.deltaY < -20 && currentIdx > 0) currentIdx--;
+      state.accRange = ranges[currentIdx];
+      syncUI(true);
+      renderAccountTop(); renderAccountList();
+    }, { passive: false });
   }
   /* ============ 穿衣提醒 / 云衣柜 ============ */
   function compressImageFile(file, cb) {
