@@ -3488,36 +3488,20 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
   .modal-xwrap { top: 0; }
 
   /* 手机端记账：水平日期切换改为垂直滑动字轮，左侧九色鹿虚影 */
-  .rc-toolbar { justify-content: center; padding-right: 64px; }   /* 字轮整体居中，右侧预留标签管理按钮宽度避免重合 */
+  .rc-toolbar { justify-content: center; margin: 14px 0 0; padding: 0 15px; }   /* 字轮与标签管理共用整行，左右贴齐小票内边距 */
   .rc-toolbar .rc-range { display: none; }
-  .rc-toolbar .rc-tag-btn { right: -12px; }   /* 标签管理右移，右竖边对齐小票（小票外边距6px vs 工具栏18px，差12px） */
+  .rc-toolbar .rc-tag-btn { right: -15px; padding: 4px 8px; line-height: 1.25; font-size: 12px; }   /* 标签管理折叠两行+右移贴小票边框，保证不与居中字轮重叠 */
   .rc-range-mobile {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    margin: 0 auto;
-    position: relative;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 2;
   }
-  .rc-range-mobile .rc-deer {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-    pointer-events: none;
-    opacity: .55;
-    filter: blur(1px) saturate(.95) brightness(1.03) contrast(1.02) drop-shadow(0 0 12px rgba(255,236,185,.5));
-    animation: deerFloat 3.2s ease-in-out infinite;
-    flex: 0 0 auto;
-  }
-  @keyframes deerFloat {
-    0%   { transform: translate(0, 0); }
-    12%  { transform: translate(-1px, -1px); }
-    45%  { transform: translate(-6px, -8px); }   /* 向左上跃起（向前跳） */
-    62%  { transform: translate(-7px, -6px); }   /* 最高点偏左上 */
-    86%  { transform: translate(-2px, -2px); }
-    100% { transform: translate(0, 0); }
-  }
+  /* 注：跳跃小鹿已按用户要求移除（20260811），deer-dunhuang.png 不再被引用 */
   .rc-range-mobile .rc-wheel {
     width: 84px;
     height: 40px;
@@ -3760,6 +3744,30 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
   filter:blur(.5px) saturate(1.12) brightness(.9) contrast(1.05) drop-shadow(0 0 16px rgba(255,236,185,.55));
 }
 .acc-receipt .rc-head{ position:relative; z-index:2; }   /* 标题压在虚影之上 */
+
+/* 手机端：去除小票上的重 blur(24px)，这是滚动卡顿的主因；改用更实的半透明底，桌面端保留玻璃质感 */
+@media (max-width: 640px) {
+  .acc-receipt{
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.90);
+  }
+  .acc-receipt .rc-summary,
+  .acc-receipt .rc-item-front{
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.94);
+  }
+  .acc-receipt .rc-range-btn{
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .rc-range-mobile .rc-wheel{
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .acc-receipt .rc-lotus{ filter: blur(0) saturate(1.1) brightness(.92) drop-shadow(0 0 10px rgba(255,236,185,.45)); }
+}
 
 
 .rc-sub{ font-size:16px; font-weight:800; color:#5f7a5a; letter-spacing:4px; margin-top:2px; font-family:"Courier New",monospace; }

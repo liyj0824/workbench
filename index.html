@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="小李的工作台">
 <title>小李的工作台</title>
 <link rel="manifest" href="manifest.json?v=20260803i">
-<link rel="stylesheet" href="style.css?v=20260811f">
+<link rel="stylesheet" href="style.css?v=20260811k">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -227,6 +227,18 @@
     <div class="set-group">
       <div class="set-group-title">六、数据与辅助功能</div>
 
+      <div class="set-sub" style="display:flex;align-items:center;justify-content:space-between;">云端同步（Supabase）<button class="mini-btn" id="set-cloud-view">查看</button></div>
+      <div class="set-row" style="flex-wrap:wrap;"><span>Project URL</span><input type="text" id="set-cloud-url" placeholder="https://xxxxx.supabase.co" style="flex:1 1 100%;margin-top:6px;font-size:12px;"></div>
+      <div class="set-row" style="flex-wrap:wrap;"><span>anon key</span><input type="password" id="set-cloud-key" placeholder="eyJ..." style="flex:1 1 100%;margin-top:6px;font-size:12px;"></div>
+      <div class="set-row" style="flex-wrap:wrap;"><span>同步码</span><input type="password" id="set-cloud-code" placeholder="用于加密/解密数据的 8 位以上密码" style="flex:1 1 100%;margin-top:6px;font-size:12px;"></div>
+      <div class="set-row set-clear-group">
+        <button class="mini-btn" id="set-cloud-test">保存链接并测试</button>
+        <button class="mini-btn" id="set-cloud-push">推送同步</button>
+        <button class="mini-btn" id="set-cloud-pull">拉取同步</button>
+        <span id="set-cloud-status" style="font-size:12px;color:#8a8a8a;align-self:center;">未配置</span>
+      </div>
+      <p class="hint">同步码用于端到端加密，Supabase 服务端只存储密文；两端使用相同同步码才能互相解密。</p>
+
       <div class="set-sub">数据存储与管理</div>
       <div class="set-row set-clear-group">
         <button class="mini-btn warn" id="set-clear-records">清空工作区</button>
@@ -274,6 +286,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260811f"></script>
+<script src="app.js?v=20260811m"></script>
 </body>
 </html>

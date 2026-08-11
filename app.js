@@ -176,7 +176,7 @@
 
 function defaultData() {
     return {
-      settings: { iconStyle: "oil", globalBg: null, navColor: "#5f7a5a", homeBg: null, showThumbs: true, fontStyle: "song", hiddenTabs: [], memoPriorityColors: null, seenTips: false, quickAddVisible: true, quickAddHiddenBtns: [], glassOpacity: 72, glassRegions: { home: true, study: true, ent: true, life: true, settings: true }, navMode: "strip", handle: { size: 60, shape: "rounded", style: "default", custom: null, crop: { x: 50, y: 50, zoom: 150 } }, floatIconStyle: "default", floatIconCustom: null, floatIconPos: { x: 10, y: 70 }, floatIconShape: "rounded", floatIconSize: 56, floatIconCrop: { x: 50, y: 50, zoom: 150 }, fontSize: 15, fontColor: null, fontColorMode: "white", entBarColor: null, lifeBarColor: null, homeBarColor: null, homeLayout: "kaokao", regionBgs: {} },
+      settings: { iconStyle: "oil", globalBg: null, navColor: "#5f7a5a", homeBg: null, showThumbs: true, fontStyle: "song", hiddenTabs: [], memoPriorityColors: null, seenTips: false, quickAddVisible: true, quickAddHiddenBtns: [], glassOpacity: 72, glassRegions: { home: true, study: true, ent: true, life: true, settings: true }, navMode: "strip", handle: { size: 60, shape: "rounded", style: "default", custom: null, crop: { x: 50, y: 50, zoom: 150 } }, floatIconStyle: "default", floatIconCustom: null, floatIconPos: { x: 10, y: 70 }, floatIconShape: "rounded", floatIconSize: 56, floatIconCrop: { x: 50, y: 50, zoom: 150 }, fontSize: 15, fontColor: null, fontColorMode: "white", entBarColor: null, lifeBarColor: null, homeBarColor: null, homeLayout: "kaokao", regionBgs: {}, cloudSync: { url: "", key: "", code: "", lastSyncAt: null, deviceId: "" } },
       study: {
         categories: [{ name: "公考", modules: defaultModules() }],
         basicTagPool: { subject: [] },
@@ -305,6 +305,7 @@ function defaultData() {
             var self = this;
             this.data.settings = Object.assign(d.settings, p.settings || {});
             if (!this.data.settings.hiddenTabs) this.data.settings.hiddenTabs = [];
+            if (!this.data.settings.cloudSync) this.data.settings.cloudSync = clone(d.settings.cloudSync);
             this.data.study = Object.assign(d.study, p.study || {});
             this.data.ent = Object.assign(d.ent, p.ent || {});
             this.data.life = Object.assign(d.life, p.life || {});
@@ -5686,16 +5687,21 @@ function defaultData() {
               '<button class="rc-range-btn" data-range="year">本年</button>' +
             '</div>' +
             '<div class="rc-range-mobile" id="rc-range-mobile">' +
-              '<img class="rc-deer" src="assets/deer-dunhuang.png" alt="" aria-hidden="true">' +
               '<div class="rc-wheel" id="rc-wheel">' +
                 '<div class="rc-wheel-track" id="rc-wheel-track">' +
-                  '<div class="rc-wheel-item on" data-range="day">本日</div>' +
+                  '<div class="rc-wheel-item" data-range="day">本日</div>' +
+                  '<div class="rc-wheel-item" data-range="month">本月</div>' +
+                  '<div class="rc-wheel-item" data-range="year">本年</div>' +
+                  '<div class="rc-wheel-item" data-range="day">本日</div>' +
+                  '<div class="rc-wheel-item" data-range="month">本月</div>' +
+                  '<div class="rc-wheel-item" data-range="year">本年</div>' +
+                  '<div class="rc-wheel-item" data-range="day">本日</div>' +
                   '<div class="rc-wheel-item" data-range="month">本月</div>' +
                   '<div class="rc-wheel-item" data-range="year">本年</div>' +
                 '</div>' +
               '</div>' +
             '</div>' +
-            '<button class="rc-tag-btn" id="acc-tagmgr">标签管理</button>' +
+            '<button class="rc-tag-btn" id="acc-tagmgr">标签<br>管理</button>' +
           '</div>' +
          '<div class="rc-summary" id="rc-summary"></div>' +
           '<div class="rc-types" id="rc-types">' +
@@ -5772,12 +5778,14 @@ function defaultData() {
     var wheelTrack = $("rc-wheel-track");
     if (wheelTrack) {
       var wheelItems = Array.from(wheelTrack.querySelectorAll(".rc-wheel-item"));
-      var idx = wheelItems.findIndex(function (el) { return el.getAttribute("data-range") === range; });
+      var mod = ["day", "month", "year"].indexOf(range);
+      if (mod < 0) mod = 0;
       var itemH = 40;
       try { itemH = wheelItems[0] && wheelItems[0].offsetHeight || 40; } catch (e) {}
+      var homeIdx = 3 + mod;   /* 三组循环：中间一组(索引3,4,5)为 home，保证可上下无限滑动 */
       wheelTrack.style.transition = "transform .25s cubic-bezier(.22,.61,.36,1)";
-      wheelTrack.style.transform = "translateY(-" + (idx * itemH) + "px)";
-      wheelItems.forEach(function (el, i) { el.classList.toggle("on", i === idx); });
+      wheelTrack.style.transform = "translateY(-" + (homeIdx * itemH) + "px)";
+      wheelItems.forEach(function (el) { el.classList.toggle("on", el.getAttribute("data-range") === range); });
     }
     var typeBox = $("rc-types");
     if (typeBox) typeBox.querySelectorAll(".rc-type").forEach(function (b) { b.classList.toggle("on", (b.getAttribute("data-type") || "") === type); });
@@ -6083,48 +6091,55 @@ function defaultData() {
     var wheel = $("rc-wheel"); var track = $("rc-wheel-track");
     if (!wheel || !track) return;
     var items = Array.from(track.querySelectorAll(".rc-wheel-item"));
-    var ranges = items.map(function (el) { return el.getAttribute("data-range"); });
-    var currentIdx = Math.max(0, ranges.indexOf(state.accRange));
+    var ranges = ["day", "month", "year"];
+    var N = ranges.length;          /* 3 */
+    var HOME = N;                   /* 中间一组起始绝对索引 = 3（0,1,2 为 home 组），保证可无限循环 */
     var itemH = 40;
-    function syncUI(animate) {
-      track.style.transition = animate ? "transform .25s cubic-bezier(.22,.61,.36,1)" : "none";
-      track.style.transform = "translateY(-" + (currentIdx * itemH) + "px)";
-      items.forEach(function (el, i) { el.classList.toggle("on", i === currentIdx); });
-    }
     try { itemH = items[0] && items[0].offsetHeight || 40; } catch (e) {}
-    syncUI(false);
-    var startY = 0, currentY = 0, dragging = false;
+    var pos = HOME + Math.max(0, ranges.indexOf(state.accRange));  /* 当前居中的绝对索引 */
+    function apply(absIdx, animate) {
+      track.style.transition = animate ? "transform .25s cubic-bezier(.22,.61,.36,1)" : "none";
+      track.style.transform = "translateY(-" + (absIdx * itemH) + "px)";
+    }
+    function markOn() {
+      items.forEach(function (el) { el.classList.toggle("on", el.getAttribute("data-range") === state.accRange); });
+    }
+    apply(pos, false); markOn();
+    var startY = 0, startAbs = 0, dragging = false;
     wheel.addEventListener("pointerdown", function (e) {
-      dragging = true; startY = e.clientY; currentY = startY;
-      wheel.setPointerCapture(e.pointerId);
+      dragging = true; startY = e.clientY; startAbs = pos;
+      try { wheel.setPointerCapture(e.pointerId); } catch (err) {}
       track.style.transition = "none";
     });
     wheel.addEventListener("pointermove", function (e) {
       if (!dragging) return;
       e.preventDefault();
-      currentY = e.clientY;
-      var dy = currentY - startY;
-      track.style.transform = "translateY(" + (-currentIdx * itemH + dy) + "px)";
+      var dy = e.clientY - startY;
+      var raw = startAbs - dy / itemH;                 /* 向下拖(dy>0) → 索引减小（向上翻） */
+      raw = Math.max(0, Math.min(items.length - 1, raw));
+      track.style.transform = "translateY(-" + (raw * itemH) + "px)";
     });
-    wheel.addEventListener("pointerup", function () {
+    function finishDrag(e) {
       if (!dragging) return; dragging = false;
-      var dy = currentY - startY;
-      if (dy < -36 && currentIdx < items.length - 1) currentIdx++;
-      else if (dy > 36 && currentIdx > 0) currentIdx--;
-      state.accRange = ranges[currentIdx];
-      syncUI(true);
+      var cy = (e && e.clientY != null) ? e.clientY : startY;
+      var dy = cy - startY;
+      var raw = startAbs - dy / itemH;
+      var snapped = Math.max(0, Math.min(items.length - 1, Math.round(raw)));
+      var newMod = ((snapped % N) + N) % N;            /* 三组内容相同 → 取模即循环 */
+      state.accRange = ranges[newMod];
+      pos = HOME + newMod;                             /* 回中到 home 组，内容一致故无缝 */
+      apply(pos, true); markOn();
       renderAccountTop(); renderAccountList();
-    });
-    wheel.addEventListener("pointercancel", function () {
-      if (!dragging) return; dragging = false;
-      syncUI(true);
-    });
+    }
+    wheel.addEventListener("pointerup", finishDrag);
+    wheel.addEventListener("pointercancel", function () { if (!dragging) return; dragging = false; apply(pos, true); });
     wheel.addEventListener("wheel", function (e) {
       e.preventDefault();
-      if (e.deltaY > 20 && currentIdx < items.length - 1) currentIdx++;
-      else if (e.deltaY < -20 && currentIdx > 0) currentIdx--;
-      state.accRange = ranges[currentIdx];
-      syncUI(true);
+      var dir = e.deltaY > 0 ? 1 : -1;                 /* 向下滚 → 下一个（循环） */
+      var newMod = (((ranges.indexOf(state.accRange) + dir) % N) + N) % N;
+      state.accRange = ranges[newMod];
+      pos = HOME + newMod;
+      apply(pos, true); markOn();
       renderAccountTop(); renderAccountList();
     }, { passive: false });
   }
@@ -7766,7 +7781,7 @@ function defaultData() {
         '</div>' +
         '<div class="coll-tool-actions">' +
           '<button class="coll-tool-btn coll-tagmgr-btn" id="coll-tagmgr" type="button" title="标签管理"><span class="ctm-txt">标签管理</span><span class="ctm-ico">🏷️</span></button>' +
-          '<button class="coll-tool-btn' + (fn ? " on" : "") + '" id="coll-filter-toggle" type="button">筛选' + (fn ? '<i class="coll-fdot">' + fn + '</i>' : '') + '</button>' +
+          '<button class="coll-tool-btn' + (fn ? " on" : "") + '" id="coll-filter-toggle" type="button">筛选</button>' +
           '<button class="coll-tool-btn' + (c.batchMode ? " on" : "") + '" id="coll-batch" type="button">' + (c.batchMode ? "退出批量" : "批量") + '</button>' +
           '<button class="mini-btn coll-view-btn' + (c.view === "list" ? " on" : "") + '" id="coll-view" type="button" title="切换视图">' + (c.view === "list" ? "卡片" : "列表") + '</button>' +
         '</div>' +
@@ -9310,6 +9325,131 @@ function defaultData() {
     };
   }
 
+  /* ============ 云端同步（Supabase） ============
+     端到端加密：同步码经 PBKDF2 派生 AES-GCM 密钥，云端只存密文。
+     user_id 使用同步码 SHA-256，同一同步码即可多端互通。 */
+  var _cloudSyncKeyCache = null;
+  function getCloudSyncCfg() { return Store.data.settings.cloudSync || { url: "", key: "", code: "", lastSyncAt: null, deviceId: "" }; }
+  function ensureCloudDeviceId() {
+    var cfg = getCloudSyncCfg();
+    if (!cfg.deviceId) { cfg.deviceId = "wb-" + Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36); Store.save(); }
+    return cfg.deviceId;
+  }
+  function resetCloudSyncKeyCache() { _cloudSyncKeyCache = null; }
+
+  function syncBytesToBase64(bytes) {
+    var bin = "";
+    for (var i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function syncBase64ToBytes(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  async function deriveSyncKey(password) {
+    if (_cloudSyncKeyCache) return _cloudSyncKeyCache;
+    var enc = new TextEncoder();
+    var keyMaterial = await window.crypto.subtle.importKey("raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]);
+    var key = await window.crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt: enc.encode("workbench-sync-salt-v1"), iterations: 100000, hash: "SHA-256" },
+      keyMaterial,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+    _cloudSyncKeyCache = key;
+    return key;
+  }
+  async function encryptSyncData(text, password) {
+    var key = await deriveSyncKey(password);
+    var iv = window.crypto.getRandomValues(new Uint8Array(12));
+    var enc = new TextEncoder();
+    var ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, enc.encode(text));
+    var combined = new Uint8Array(iv.length + ciphertext.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(ciphertext), iv.length);
+    return syncBytesToBase64(combined);
+  }
+  async function decryptSyncData(b64, password) {
+    var key = await deriveSyncKey(password);
+    var bytes = syncBase64ToBytes(b64);
+    var iv = bytes.slice(0, 12);
+    var ciphertext = bytes.slice(12);
+    var decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+    return new TextDecoder().decode(decrypted);
+  }
+  async function hashSyncCode(code) {
+    var enc = new TextEncoder();
+    var buf = await window.crypto.subtle.digest("SHA-256", enc.encode(code));
+    var arr = Array.from(new Uint8Array(buf));
+    return arr.map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+  function getSupabaseHeaders(key) {
+    return { "apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json" };
+  }
+  function setCloudSyncStatus(msg, isError) {
+    var el = $("set-cloud-status");
+    if (el) { el.textContent = msg; el.style.color = isError ? "#b87a72" : "#5f7a5a"; }
+  }
+  async function cloudSyncTest() {
+    var cfg = getCloudSyncCfg();
+    if (!cfg.url || !cfg.key) { setCloudSyncStatus("请先填写 Project URL 和 anon key", true); return; }
+    try {
+      var resp = await fetch(cfg.url + "/rest/v1/workbench_sync?limit=1", { method: "GET", headers: getSupabaseHeaders(cfg.key) });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      setCloudSyncStatus("连接成功");
+      cfg.lastSyncAt = cfg.lastSyncAt || Date.now(); Store.save();
+    } catch (e) { setCloudSyncStatus("连接失败：" + e.message, true); }
+  }
+  async function cloudSyncPush() {
+    var cfg = getCloudSyncCfg();
+    if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
+    if (cfg.code.length < 8) { setCloudSyncStatus("同步码建议至少 8 位", true); return; }
+    try {
+      ensureCloudDeviceId();
+      var backupObj = clone(Store.data);
+      backupObj._syncDevice = cfg.deviceId;
+      backupObj._syncTime = Date.now();
+      var plaintext = JSON.stringify(backupObj);
+      var payload = await encryptSyncData(plaintext, cfg.code);
+      var userId = await hashSyncCode(cfg.code);
+      var body = { user_id: userId, payload: payload, updated_at: new Date().toISOString() };
+      var resp = await fetch(cfg.url + "/rest/v1/workbench_sync", {
+        method: "POST",
+        headers: Object.assign(getSupabaseHeaders(cfg.key), { "Prefer": "resolution=merge-duplicates" }),
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      cfg.lastSyncAt = Date.now(); Store.save();
+      setCloudSyncStatus("推送成功 " + new Date().toLocaleString());
+    } catch (e) { setCloudSyncStatus("推送失败：" + e.message, true); }
+  }
+  async function cloudSyncPull() {
+    var cfg = getCloudSyncCfg();
+    if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
+    try {
+      var userId = await hashSyncCode(cfg.code);
+      var resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId) + "&select=payload,updated_at&limit=1", {
+        method: "GET", headers: getSupabaseHeaders(cfg.key)
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      var rows = await resp.json();
+      if (!rows || !rows.length) { setCloudSyncStatus("云端暂无数据"); return; }
+      var plaintext = await decryptSyncData(rows[0].payload, cfg.code);
+      var obj = JSON.parse(plaintext);
+      if (!obj || typeof obj !== "object" || !obj.settings || !obj.life) throw new Error("解密后数据格式不对，请检查同步码");
+      var localCloudCfg = clone(cfg);
+      Store.data = obj;
+      Store.data.settings.cloudSync = localCloudCfg;
+      Store.save();
+      setCloudSyncStatus("拉取成功 " + new Date().toLocaleString());
+      applyActiveBg(); applyFont(); renderBottomNav();
+      if (state.tab === "home") renderHome(); else if (state.tab === "study") renderStudyMain(); else if (state.tab === "ent") renderEntList(); else if (state.tab === "life") renderLifeMain();
+    } catch (e) { setCloudSyncStatus("拉取失败：" + e.message, true); }
+  }
+
   function renderSettings() {
     var iconSel = $("set-icon");
     if (isMobileLike()) {
@@ -9549,6 +9689,21 @@ function defaultData() {
         + '</ol>'
         + '<p class="hint" style="color:#b00020;"><b>【注意】</b>导入会覆盖当前设备上的所有数据。导入前建议先在本机导出一份备份。</p>');
     };
+    var cloudView = $("set-cloud-view");
+    if (cloudView) {
+      cloudView.onclick = function () {
+        openInfoModal("云端同步（Supabase）说明",
+          '<div style="line-height:1.7;">'
+          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">1. Project URL（门牌号）</b><br>这是你专属云数据库的地址，形如 <code>https://xxxxx.supabase.co</code>。仅需首次配置时填写一次，请务必核对无误。</div>'
+          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">2. anon key（公开密钥）</b><br>这是访问数据库的钥匙，形如 <code>eyJ...</code>。同样只需填写一次，注意保护它不被泄露给无关人员。</div>'
+          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">3. 同步码（加密密码）</b><br>这是你自定义的 8 位以上密码，用于数据加密。电脑和手机端必须完全一致才能互相解密。<br><span style="color:#b00020;">⚠️ 重要提醒：谁拿到同步码就能查看你的数据，请务必妥善保管。一旦遗忘，云端数据将无法恢复。</span></div>'
+          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">4. 保存链接并测试（首次连接）</b><br>配置好前三项后，点击此按钮保存并检测网络连通性。连接成功会提示成功，失败请检查 URL 和密钥是否正确。</div>'
+          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">5. 推送同步（本地上传）</b><br>将当前设备的数据加密上传至云端，会覆盖云端的旧数据。建议在电脑端修改大量数据后使用，上传前请确认云端数据已备份。</div>'
+          + '<div style="margin-bottom:11px;"><b style="color:#3a3a3a;">6. 拉取同步（云端下载）</b><br>从云端下载数据到当前设备，会覆盖本地的现有内容。建议在手机端获取最新数据时使用，下载前请确保本地重要数据已保存。</div>'
+          + '<div style="margin-bottom:4px;"><b style="color:#3a3a3a;">7. 状态提示（实时监控）</b><br>界面会显示 “未配置” 或 “上次同步：某时间”，帮助你随时掌握当前设备与云端的同步状态，避免操作冲突。</div>'
+          + '</div>');
+      };
+    }
     $("set-export").onclick = function () {
       try {
         var backupObj = clone(Store.data);
@@ -9631,6 +9786,24 @@ function defaultData() {
       reader.onerror = function () { toast("读取文件失败"); };
       reader.readAsText(f, "utf-8");
     };
+    /* ===== 云端同步绑定 ===== */
+    (function bindCloudSync() {
+      var cloudCfg = getCloudSyncCfg();
+      var cloudUrl = $("set-cloud-url");
+      var cloudKey = $("set-cloud-key");
+      var cloudCode = $("set-cloud-code");
+      if (cloudUrl) { cloudUrl.value = cloudCfg.url || ""; cloudUrl.onchange = function () { cloudCfg.url = this.value.trim(); resetCloudSyncKeyCache(); Store.save(); }; }
+      if (cloudKey) { cloudKey.value = cloudCfg.key || ""; cloudKey.onchange = function () { cloudCfg.key = this.value.trim(); Store.save(); }; }
+      if (cloudCode) { cloudCode.value = cloudCfg.code || ""; cloudCode.onchange = function () { cloudCfg.code = this.value; resetCloudSyncKeyCache(); Store.save(); }; }
+      var cloudTest = $("set-cloud-test");
+      if (cloudTest) cloudTest.onclick = cloudSyncTest;
+      var cloudPush = $("set-cloud-push");
+      if (cloudPush) cloudPush.onclick = cloudSyncPush;
+      var cloudPull = $("set-cloud-pull");
+      if (cloudPull) cloudPull.onclick = cloudSyncPull;
+      if (cloudCfg.lastSyncAt) setCloudSyncStatus("上次同步 " + new Date(cloudCfg.lastSyncAt).toLocaleString());
+      else setCloudSyncStatus("未配置");
+    })();
   }
 
   function normalizeLifeSelection() {
