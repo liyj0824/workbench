@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="小李的工作台">
 <title>小李的工作台</title>
 <link rel="manifest" href="manifest.json?v=20260803i">
-<link rel="stylesheet" href="style.css?v=20260811k">
+<link rel="stylesheet" href="style.css?v=20260812q">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -237,7 +237,7 @@
         <button class="mini-btn" id="set-cloud-pull">拉取同步</button>
         <span id="set-cloud-status" style="font-size:12px;color:#8a8a8a;align-self:center;">未配置</span>
       </div>
-      <p class="hint">同步码用于端到端加密，Supabase 服务端只存储密文；两端使用相同同步码才能互相解密。</p>
+      <p class="hint">同步采用「按记录合并」模式：电脑与手机各自新增的内容会自动合集，不会互相覆盖丢失；仅当同一笔记录两端都修改时以最新一次为准。同步码用于端到端加密，Supabase 服务端只存储密文；两端使用相同同步码才能互相解密。</p>
 
       <div class="set-sub">数据存储与管理</div>
       <div class="set-row set-clear-group">
@@ -286,6 +286,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260811p"></script>
+<script src="app.js?v=20260812q"></script>
 </body>
 </html>

@@ -9389,6 +9389,61 @@ function defaultData() {
   function getSupabaseHeaders(key) {
     return { "apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json" };
   }
+  /* ===== 云端同步：按记录合并（双向合集，不互相覆盖） ===== */
+  function stableMidHash(obj) {
+    var s = JSON.stringify(obj, function (k, v) { return k === "_mid" ? undefined : v; });
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return "m" + h.toString(36);
+  }
+  function ensureMid(el) {
+    if (el && typeof el === "object" && !Array.isArray(el)) {
+      if (el.id) return String(el.id);
+      if (el._mid) return el._mid;
+      el._mid = stableMidHash(el);
+      return el._mid;
+    }
+    return null;
+  }
+  function mergeArrays(a, b) {
+    a = Array.isArray(a) ? a : [];
+    b = Array.isArray(b) ? b : [];
+    if (a.length && typeof a[0] !== "object") {
+      var seen = {}, out = [];
+      a.concat(b).forEach(function (x) { var k = JSON.stringify(x); if (!seen[k]) { seen[k] = 1; out.push(x); } });
+      return out;
+    }
+    var used = {}, out = [];
+    b.forEach(function (el) { var id = ensureMid(el); if (id && !used[id]) { used[id] = 1; out.push(el); } });
+    a.forEach(function (el) { var id = ensureMid(el); if (id && !used[id]) { used[id] = 1; out.push(el); } });
+    return out;
+  }
+  function mergeObjects(a, b) {
+    a = a && typeof a === "object" && !Array.isArray(a) ? a : {};
+    b = b && typeof b === "object" && !Array.isArray(b) ? b : {};
+    var out = {};
+    Object.keys(a).forEach(function (k) { out[k] = a[k]; });
+    Object.keys(b).forEach(function (k) {
+      if (b[k] === undefined) return;
+      if (Array.isArray(a[k]) && Array.isArray(b[k])) out[k] = mergeArrays(a[k], b[k]);
+      else if (a[k] && typeof a[k] === "object" && !Array.isArray(a[k]) && b[k] && typeof b[k] === "object" && !Array.isArray(b[k])) out[k] = mergeObjects(a[k], b[k]);
+      else out[k] = b[k];
+    });
+    return out;
+  }
+  function mergeNode(a, b) {
+    if (b === undefined) return a;
+    if (Array.isArray(a) && Array.isArray(b)) return mergeArrays(a, b);
+    if (a && typeof a === "object" && !Array.isArray(a) && b && typeof b === "object" && !Array.isArray(b)) return mergeObjects(a, b);
+    return b;
+  }
+  function mergeSyncData(local, remote) {
+    var out = clone(local);
+    ["study", "ent", "life", "countdowns"].forEach(function (key) {
+      if (remote && remote[key] !== undefined) out[key] = mergeNode(local ? local[key] : undefined, remote[key]);
+    });
+    return out;
+  }
   function setCloudSyncStatus(msg, isError) {
     var el = $("set-cloud-status");
     if (el) { el.textContent = msg; el.style.color = isError ? "#b87a72" : "#5f7a5a"; }
@@ -9426,12 +9481,27 @@ function defaultData() {
     setCloudSyncBusy(true);
     try {
       ensureCloudDeviceId();
-      var backupObj = clone(Store.data);
-      backupObj._syncDevice = cfg.deviceId;
-      backupObj._syncTime = Date.now();
-      var plaintext = JSON.stringify(backupObj);
-      var payload = await encryptSyncData(plaintext, cfg.code);
       var userId = await hashSyncCode(cfg.code);
+      /* 1) 先取云端现有数据，与本地合并（本地优先），保证不丢云端已有记录 */
+      var remoteData = null;
+      try {
+        var g = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId) + "&select=payload&limit=1", { method: "GET", headers: getSupabaseHeaders(cfg.key) });
+        if (g.ok) {
+          var grows = await g.json();
+          if (grows && grows.length) {
+            try { remoteData = JSON.parse(await decryptSyncData(grows[0].payload, cfg.code)); }
+            catch (de) { throw new Error("云端数据解密失败，可能同步码不一致：" + de.message); }
+          }
+        }
+      } catch (e) { if (e.message && e.message.indexOf("解密失败") >= 0) throw e; /* 其它网络错误则视为无，仅上传本地 */ }
+      var localData = clone(Store.data);
+      var merged = (remoteData && remoteData.settings) ? mergeSyncData(remoteData, localData) : localData;
+      var localCloudCfg = clone(cfg);
+      merged.settings = merged.settings || {};
+      merged.settings.cloudSync = localCloudCfg;
+      Store.data = merged; Store.save();
+      /* 2) 上传合并后的合集（整包，含双方所有记录） */
+      var payload = await encryptSyncData(JSON.stringify(merged), cfg.code);
       var body = { user_id: userId, payload: payload, updated_at: new Date().toISOString() };
       var resp = await fetch(cfg.url + "/rest/v1/workbench_sync", {
         method: "POST",
@@ -9440,7 +9510,7 @@ function defaultData() {
       });
       if (!resp.ok) throw new Error("HTTP " + resp.status);
       cfg.lastSyncAt = Date.now(); Store.save();
-      setCloudSyncStatus("推送成功 " + new Date().toLocaleString());
+      setCloudSyncStatus("推送成功（已合并） " + new Date().toLocaleString());
     } catch (e) { setCloudSyncStatus("推送失败：" + e.message, true); }
     finally { setCloudSyncBusy(false); }
   }
@@ -9461,14 +9531,15 @@ function defaultData() {
       if (!resp.ok) throw new Error("HTTP " + resp.status);
       var rows = await resp.json();
       if (!rows || !rows.length) { setCloudSyncStatus("云端暂无数据"); return; }
-      var plaintext = await decryptSyncData(rows[0].payload, cfg.code);
-      var obj = JSON.parse(plaintext);
-      if (!obj || typeof obj !== "object" || !obj.settings || !obj.life) throw new Error("解密后数据格式不对，请检查同步码");
+      var remoteObj = JSON.parse(await decryptSyncData(rows[0].payload, cfg.code));
+      if (!remoteObj || typeof remoteObj !== "object") throw new Error("解密后数据格式不对，请检查同步码");
+      var localData = clone(Store.data);
+      var merged = mergeSyncData(localData, remoteObj);   // 云端优先，本地独有记录保留
       var localCloudCfg = clone(cfg);
-      Store.data = obj;
-      Store.data.settings.cloudSync = localCloudCfg;
-      Store.save();
-      setCloudSyncStatus("拉取成功 " + new Date().toLocaleString());
+      merged.settings = merged.settings || {};
+      merged.settings.cloudSync = localCloudCfg;
+      Store.data = merged; Store.save();
+      setCloudSyncStatus("拉取成功（已合并） " + new Date().toLocaleString());
       applyActiveBg(); applyFont(); renderBottomNav();
       if (state.tab === "home") renderHome(); else if (state.tab === "study") renderStudyMain(); else if (state.tab === "ent") renderEntList(); else if (state.tab === "life") renderLifeMain();
     } catch (e) { setCloudSyncStatus("拉取失败：" + e.message, true); }
