@@ -9393,6 +9393,11 @@ function defaultData() {
     var el = $("set-cloud-status");
     if (el) { el.textContent = msg; el.style.color = isError ? "#b87a72" : "#5f7a5a"; }
   }
+  function setCloudSyncBusy(busy) {
+    ["set-cloud-test", "set-cloud-push", "set-cloud-pull"].forEach(function (id) {
+      var el = $(id); if (el) { el.disabled = busy; el.style.opacity = busy ? ".5" : ""; }
+    });
+  }
   async function cloudSyncTest() {
     var cloudUrl = $("set-cloud-url"), cloudKey = $("set-cloud-key");
     var cfg = getCloudSyncCfg();
@@ -9400,12 +9405,14 @@ function defaultData() {
     if (cloudKey) cfg.key = cloudKey.value.trim();
     Store.save();
     if (!cfg.url || !cfg.key) { setCloudSyncStatus("请先填写 Project URL 和 anon key", true); return; }
+    setCloudSyncBusy(true);
     try {
       var resp = await fetch(cfg.url + "/rest/v1/workbench_sync?limit=1", { method: "GET", headers: getSupabaseHeaders(cfg.key) });
       if (!resp.ok) throw new Error("HTTP " + resp.status);
       setCloudSyncStatus("连接成功");
       cfg.lastSyncAt = cfg.lastSyncAt || Date.now(); Store.save();
     } catch (e) { setCloudSyncStatus("连接失败：" + e.message, true); }
+    finally { setCloudSyncBusy(false); }
   }
   async function cloudSyncPush() {
     var cloudUrl = $("set-cloud-url"), cloudKey = $("set-cloud-key"), cloudCode = $("set-cloud-code");
@@ -9416,6 +9423,7 @@ function defaultData() {
     Store.save();
     if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
     if (cfg.code.length < 8) { setCloudSyncStatus("同步码建议至少 8 位", true); return; }
+    setCloudSyncBusy(true);
     try {
       ensureCloudDeviceId();
       var backupObj = clone(Store.data);
@@ -9434,6 +9442,7 @@ function defaultData() {
       cfg.lastSyncAt = Date.now(); Store.save();
       setCloudSyncStatus("推送成功 " + new Date().toLocaleString());
     } catch (e) { setCloudSyncStatus("推送失败：" + e.message, true); }
+    finally { setCloudSyncBusy(false); }
   }
   async function cloudSyncPull() {
     var cloudUrl = $("set-cloud-url"), cloudKey = $("set-cloud-key"), cloudCode = $("set-cloud-code");
@@ -9443,6 +9452,7 @@ function defaultData() {
     if (cloudCode) cfg.code = cloudCode.value;
     Store.save();
     if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
+    setCloudSyncBusy(true);
     try {
       var userId = await hashSyncCode(cfg.code);
       var resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId) + "&select=payload,updated_at&limit=1", {
@@ -9462,6 +9472,7 @@ function defaultData() {
       applyActiveBg(); applyFont(); renderBottomNav();
       if (state.tab === "home") renderHome(); else if (state.tab === "study") renderStudyMain(); else if (state.tab === "ent") renderEntList(); else if (state.tab === "life") renderLifeMain();
     } catch (e) { setCloudSyncStatus("拉取失败：" + e.message, true); }
+    finally { setCloudSyncBusy(false); }
   }
 
   function renderSettings() {
