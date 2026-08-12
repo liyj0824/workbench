@@ -9500,14 +9500,33 @@ function defaultData() {
       merged.settings = merged.settings || {};
       merged.settings.cloudSync = localCloudCfg;
       Store.data = merged; Store.save();
-      /* 2) 上传合并后的合集（整包，含双方所有记录） */
+      /* 2) 上传合并后的合集（整包，含双方所有记录）
+         云端已有该 user_id 记录时用 PATCH 更新，避免 409 唯一约束冲突；
+         仅当云端尚无记录时才 POST 插入。POST 万一仍 409 则降级为 PATCH。 */
       var payload = await encryptSyncData(JSON.stringify(merged), cfg.code);
       var body = { user_id: userId, payload: payload, updated_at: new Date().toISOString() };
-      var resp = await fetch(cfg.url + "/rest/v1/workbench_sync", {
-        method: "POST",
-        headers: Object.assign(getSupabaseHeaders(cfg.key), { "Prefer": "resolution=merge-duplicates" }),
-        body: JSON.stringify(body)
-      });
+      var hasRemote = !!(remoteData && remoteData.settings);
+      var resp;
+      if (hasRemote) {
+        resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId), {
+          method: "PATCH",
+          headers: getSupabaseHeaders(cfg.key),
+          body: JSON.stringify({ payload: payload, updated_at: new Date().toISOString() })
+        });
+      } else {
+        resp = await fetch(cfg.url + "/rest/v1/workbench_sync", {
+          method: "POST",
+          headers: Object.assign(getSupabaseHeaders(cfg.key), { "Prefer": "resolution=merge-duplicates" }),
+          body: JSON.stringify(body)
+        });
+        if (resp.status === 409) {
+          resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId), {
+            method: "PATCH",
+            headers: getSupabaseHeaders(cfg.key),
+            body: JSON.stringify({ payload: payload, updated_at: new Date().toISOString() })
+          });
+        }
+      }
       if (!resp.ok) throw new Error("HTTP " + resp.status);
       cfg.lastSyncAt = Date.now(); Store.save();
       setCloudSyncStatus("推送成功（已合并） " + new Date().toLocaleString());
