@@ -758,7 +758,7 @@ function defaultData() {
       $("pk-ireset").onclick = function () { imgPosX = 50; imgPosY = 50; imgZoom = 100; syncImgSliders(); updateImgPreview(); };
       $("pk-ifocus").onclick = function () { imgPosX = 50; imgPosY = 35; imgZoom = 130; syncImgSliders(); updateImgPreview(); };
       $("pk-iremove").onclick = function () {
-        imgData = null; imgArea.style.display = "none"; imgArea.innerHTML = "";
+        imgData = null; curIdbKey = null; imgArea.style.display = "none"; imgArea.innerHTML = "";
         $("pk-img").value = "";
       };
     }
@@ -782,31 +782,73 @@ function defaultData() {
     var pkImg = noImage ? null : $("pk-img");
     if (pkImg) pkImg.addEventListener("change", function () {
       var f = this.files && this.files[0]; if (!f) return;
-      if (f.size > 12 * 1024 * 1024) { toast("图片不能超过12MB"); return; }
-      /* 高清原图存 IndexedDB（画质不压缩）；localStorage 仅留下方 1080px 缩略兜底 */
-      if (f && ImgDB.available) { curIdbKey = uid(); ImgDB.put(curIdbKey, f).catch(function () {}); }
-      var rd = new FileReader();
-      rd.onload = function () {
+      if (!f.type || f.type.indexOf("image/") !== 0) { toast("请选择图片文件"); return; }
+      if (f.size === 0) { toast("图片读取失败：文件为空"); return; }
+
+      /* ===== 有 IndexedDB（现代手机/桌面都支持）=====
+         高清原图直存 IndexedDB，不再受 12MB 限制；仅留一个超大兜底防止浏览器崩溃。
+         localStorage 只存一份压缩小图(≈1280px / 0.72)做保险，绝不会撑爆。
+         真正显示时从 IndexedDB 取高清原图，画质不打折。 */
+      if (ImgDB.available) {
+        if (f.size > 40 * 1024 * 1024) { toast("图片过大（>40MB），请先压缩后再试"); return; }
+        curIdbKey = uid();
+        ImgDB.put(curIdbKey, f).catch(function () {});
+        var rd = new FileReader();
+        rd.onload = function () {
+          var src = rd.result;
+          if (!src || src.indexOf("data:image") !== 0) { toast("图片读取失败：无法识别格式"); return; }
+          var img = new Image();
+          img.onload = function () {
+            try {
+              var w = img.width, h = img.height, fw = w, fh = h;
+              var max = 1280;
+              if (fw > fh && fw > max) { fh = Math.round(fh * max / fw); fw = max; }
+              else if (fh > max) { fw = Math.round(fw * max / fh); fh = max; }
+              var cv = document.createElement("canvas"); cv.width = fw; cv.height = fh;
+              cv.getContext("2d").drawImage(img, 0, 0, fw, fh);
+              var data = cv.toDataURL("image/jpeg", 0.72);
+              if (!data || data.indexOf("data:image") !== 0) throw new Error("compress-empty");
+              showImgControls(data);
+            } catch (e) {
+              /* 压缩失败（超大图）→ 兜底置空，但高清原图仍在 IndexedDB，显示正常 */
+              showImgControls("");
+            }
+          };
+          img.onerror = function () { toast("图片读取失败：无法解码图片"); };
+          img.src = src;
+        };
+        rd.onerror = function () { toast("图片读取失败：" + (rd.error && rd.error.message ? rd.error.message : "无法读取文件")); };
+        rd.readAsDataURL(f);
+        return;
+      }
+
+      /* ===== 无 IndexedDB：只能依赖 localStorage，必须压缩 + 限 12MB ===== */
+      if (f.size > 12 * 1024 * 1024) { toast("当前环境不支持高清存储，图片请不要超过12MB"); return; }
+      var rd2 = new FileReader();
+      rd2.onload = function () {
+        var src = rd2.result;
+        if (!src || src.indexOf("data:image") !== 0) { toast("图片读取失败：无法识别格式"); return; }
         var img = new Image();
         img.onload = function () {
-          var max = 1080, w = img.width, h = img.height;
-          if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
-          else if (h > max) { w = Math.round(w * max / h); h = max; }
           try {
+            var w = img.width, h = img.height;
+            var keepOriginal = (f.size <= 1 * 1024 * 1024 && Math.max(w, h) <= 1920);
+            if (keepOriginal) { showImgControls(src); return; }
+            var max = 1920;
+            if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+            else if (h > max) { w = Math.round(w * max / h); h = max; }
             var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
             cv.getContext("2d").drawImage(img, 0, 0, w, h);
-            /* 底图不需要透明，转 JPEG 大幅压缩体积，避免原图几 MB 直接撑爆 localStorage */
-            var data = cv.toDataURL("image/jpeg", 0.7);
-            /* 加固：toDataURL 在部分手机端对超大/特殊格式图片会静默返回空串（不抛异常），
-               导致背景“识别失败”。此时降级为原图直接使用（rd.result = 未压缩原图 dataURL） */
+            var data = cv.toDataURL("image/jpeg", 0.85);
             if (!data || data.indexOf("data:image") !== 0) throw new Error("compress-empty");
             showImgControls(data);
-          } catch (e) { showImgControls(rd.result); }
+          } catch (e) { showImgControls(src); }
         };
-        img.onerror = function () { toast("图片读取失败"); };
-        img.src = rd.result;
+        img.onerror = function () { toast("图片读取失败：无法解码图片"); };
+        img.src = src;
       };
-      rd.readAsDataURL(f);
+      rd2.onerror = function () { toast("图片读取失败：" + (rd2.error && rd2.error.message ? rd2.error.message : "无法读取文件")); };
+      rd2.readAsDataURL(f);
     });
     /* 如果编辑时已有图片，直接显示控件（仅在允许图片时） */
     if (!noImage && existingImgData) showImgControls(existingImgData);
@@ -949,13 +991,13 @@ function defaultData() {
       var typed = parseHexInput($("pk-hex").value);
       if (typed) { var thsv = hexToHsv(typed); h = thsv[0]; s = thsv[1]; v = thsv[2]; }
       closeModal();
-      if (chosenType === "image" && imgData) {
+      if (chosenType === "image" && (imgData || curIdbKey)) {
         /* 按当前设备写入对应 offset，保留另一端不动；旧 posX/posY/zoom 顶层字段也同步一份用于兼容 */
         var _key = isMobileLike() ? "mobile" : "desktop";
         var _oldOffset = (cur && cur.offset) ? cur.offset : {};
         cb({
           type: "image",
-          value: imgData,
+          value: imgData || "",
           idb: curIdbKey || null,
           posX: Math.round(imgPosX), posY: Math.round(imgPosY), zoom: Math.round(imgZoom),
           offset: {
@@ -1174,12 +1216,13 @@ function defaultData() {
     if (_imgUrlCache[bg.idb]) return Promise.resolve(_imgUrlCache[bg.idb]);
     return ImgDB.get(bg.idb).then(function (blob) {
       if (!blob) return null;
-      return new Promise(function (res) {
-        var fr = new FileReader();
-        fr.onload = function () { _imgUrlCache[bg.idb] = fr.result; res(fr.result); };
-        fr.onerror = function () { res(null); };
-        fr.readAsDataURL(blob);
-      });
+      try {
+        /* 用对象 URL 而非 readAsDataURL：不把整张高清图转成 base64 塞进内存，
+           即使几十 MB 的大图也能流畅显示，不怕手机内存爆掉 */
+        var url = URL.createObjectURL(blob);
+        _imgUrlCache[bg.idb] = url;
+        return url;
+      } catch (e) { return null; }
     }).catch(function () { return null; });
   }
 
@@ -4680,33 +4723,14 @@ function defaultData() {
       + '<div style="margin:10px 0;"><label style="font-size:13px;color:#5f7a5a;font-weight:600;">\u6A21\u5757\u5217\u8868\uFF08\u70B9\u51FB\u6DFB\u52A0\uFF09:</label><div id="scat-mods" style="margin-top:6px;"></div></div>'
       + '<button class="mini-btn" id="scat-addmod" style="margin-bottom:8px;">+ \u6DFB\u52A0\u6A21\u5757</button>'
       + '<div style="margin:14px 0 6px;font-size:13px;color:#5f7a5a;font-weight:600;">\u9636\u6BB5\u8BBE\u7F6E:</div>'
-      + '<div id="phase-opt-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-      /* 选项A：基础+提升 */
-      + '<label class="phase-opt-card" data-phase-val="default">'
-      + '<div class="phase-opt-dot"></div>'
-      + '<div class="phase-opt-text"><strong>\u57FA\u7840\u5B66\u4E60</strong><span>+</span><strong>\u63D0\u5347\u9636\u6BB5</strong></div>'
-      + '<div class="phase-opt-hint">\u4E24\u4E2A\u9ED8\u8BA4\u9636\u6BB5</div>'
-      + '<input type="radio" name="scat-phase" value="default" checked style="display:none;">'
-      + '</label>'
-      /* 选项B：单一阶段 */
-      + '<label class="phase-opt-card" data-phase-val="single">'
-      + '<div class="phase-opt-dot"></div>'
-      + '<div class="phase-opt-text"><strong>\u53EA\u4E00\u4E2A\u9636\u6BB5</strong></div>'
-      + '<div class="phase-opt-hint">\u7B80\u5355\u76F4\u63A5</div>'
-      + '<input type="radio" name="scat-phase" value="single" style="display:none;">'
-      + '</label>'
-      /* 选项C：自定义 — 占满一行 */
-      + '</div><div id="phase-opt-custom-row" style="margin-bottom:10px;">'
-      + '<label class="phase-opt-card phase-opt-wide" data-phase-val="custom" style="width:100%;">'
-      + '<div class="phase-opt-dot"></div>'
-      + '<div class="phase-opt-text"><strong>\u81EA\u5B9A\u4E49\u9636\u6BB5\u540D</strong></div>'
-      + '<div class="phase-opt-hint">\u81EA\u5DF1\u586B\u5199\u9636\u6BB5\u540D\u79F0</div>'
-      + '<input type="radio" name="scat-phase" value="custom" style="display:none;">'
-      + '</label></div>'
-      + '<div id="scat-custom-phases" style="display:none;margin-bottom:10px;">'
-      + '<input id="scat-phase1" placeholder="\u9636\u6BB51\u540D\u79F0" value="\u57FA\u7840\u5B66\u4E60" style="width:45%;margin-right:4px;">'
-      + '<input id="scat-phase2" placeholder="\u9636\u6BB52\u540D\u79F0" value="\u63D0\u5347\u9636\u6BB5" style="width:45%;">'
-      + '</div>'
+      + '<div style="background:#fffefb;border-radius:12px;border:0.5px solid #e8e4db;padding:14px;margin-bottom:10px;">'
+      + '<label style="display:block;font-size:13px;color:#6e7468;margin-bottom:10px;">\u8981\u8BBE\u7F6E\u51E0\u4E2A\u9636\u6BB5\uFF1F</label>'
+      + '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<button type="button" id="scat-phase-minus" style="width:34px;height:34px;border-radius:50%;border:0.5px solid #c9d6c6;background:#f4f9f2;color:#5a7a5a;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">\u2212</button>'
+      + '<input id="scat-phase-count" type="number" min="1" max="8" value="2" style="width:80px;height:36px;text-align:center;font-size:15px;border:0.5px solid #c9d6c6;border-radius:10px;background:#fff;color:#3a4a38;outline:none;">'
+      + '<button type="button" id="scat-phase-plus" style="width:34px;height:34px;border-radius:50%;border:0.5px solid #c9d6c6;background:#f4f9f2;color:#5a7a5a;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>'
+      + '</div></div>'
+      + '<div id="scat-phase-names" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;"></div>'
       + '<p class="hint" style="font-size:12px;">\u63D0\u793A\uFF1A\u6BCF\u4E2A\u5B66\u4E60\u9879\u76EE\u7684\u6A21\u5757\u90FD\u662F\u72EC\u7ACB\u7684\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u9879\u76EE\u3002</p>'
       + '<div class="form-actions"><button class="btn-secondary" id="scat-cancel">\u8FD4\u56DE</button><button class="btn-primary" id="scat-save">\u521B\u5EFA</button></div>';
     openModal(html);
@@ -4738,17 +4762,41 @@ function defaultData() {
       pIdx++;
       renderMods();
     };
-    /* 阶段类型切换 */
-    document.querySelectorAll("[name='scat-phase']").forEach(function(r) {
-      r.onchange = function () { $("scat-custom-phases").style.display = this.value === "custom" ? "" : "none"; };
-    });
+    /* 阶段名称动态渲染 */
+    function renderPhaseNames(n) {
+      n = Math.max(1, Math.min(8, parseInt(n, 10) || 2));
+      var cnt = $("scat-phase-count"); if (cnt) cnt.value = n;
+      var box = $("scat-phase-names"); if (!box) return;
+      box.innerHTML = "";
+      var defaults = ["\u57FA\u7840\u5B66\u4E60","\u63D0\u5347\u9636\u6BB5","\u51B2\u523A\u9636\u6BB5","\u590D\u4E60\u9636\u6BB5","\u6A21\u8003\u9636\u6BB5","\u67E5\u6F0F\u8865\u7F3A","\u8003\u524D\u51B2\u523A","\u603B\u590D\u4E60"];
+      for (var i = 0; i < n; i++) {
+        var row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:10px;background:#fffefb;border-radius:12px;border:0.5px solid #e8e4db;padding:12px 14px;";
+        var def = defaults[i] || ("\u9636\u6BB5" + (i + 1));
+        row.innerHTML = '<label style="font-size:13px;color:#5a6d58;min-width:52px;font-weight:500;">\u9636\u6BB5 ' + (i + 1) + '</label>'
+          + '<input type="text" class="scat-phase-name" data-idx="' + i + '" placeholder="\u4F8B\u5982\uFF1A' + def + '" value="' + def + '" style="flex:1;height:32px;border:0.5px solid #e0e5de;border-radius:9px;padding:0 10px;font-size:13px;color:#3a4a38;background:#fff;outline:none;">';
+        box.appendChild(row);
+      }
+    }
+    $("scat-phase-minus").onclick = function () { renderPhaseNames(parseInt($("scat-phase-count").value, 10) - 1); };
+    $("scat-phase-plus").onclick = function () { renderPhaseNames(parseInt($("scat-phase-count").value, 10) + 1); };
+    $("scat-phase-count").oninput = function () { renderPhaseNames(this.value); };
+    renderPhaseNames(2);
     /* 取消/保存 */
     $("scat-cancel").onclick = closeModal;
     $("scat-save").onclick = function () {
       var name = ($("scat-name").value || "").trim();
       if (!name) { toast("\u8BF7\u8F93\u5165\u9879\u76EE\u540D\u79F0"); return; }
       if (modList.length === 0) { toast("\u8BF7\u81F3\u5C11\u6DFB\u52A0\u4E00\u4E2A\u6A21\u5757"); return; }
-      var phaseType = document.querySelector("[name='scat-phase']:checked").value;
+      var phaseCount = Math.max(1, Math.min(8, parseInt($("scat-phase-count").value, 10) || 2));
+      var phaseNames = [];
+      document.querySelectorAll(".scat-phase-name").forEach(function(inp) {
+        phaseNames[parseInt(inp.getAttribute("data-idx"), 10)] = (inp.value || "").trim();
+      });
+      for (var pi = 0; pi < phaseCount; pi++) {
+        if (!phaseNames[pi]) phaseNames[pi] = (pi === 0 ? "\u57FA\u7840\u5B66\u4E60" : (pi === 1 ? "\u63D0\u5347\u9636\u6BB5" : "\u9636\u6BB5" + (pi + 1)));
+      }
+      phaseNames = phaseNames.slice(0, phaseCount);
       /* 构建阶段列表（含默认字段） */
       var defaultFieldsBasic = [
         { key: "date", type: "date", label: "\u65E5\u671F" },
@@ -4769,16 +4817,14 @@ function defaultData() {
         { key: "itemName", type: "text", label: "\u540D\u79F0" },
         { key: "note", type: "note", label: "\u7B14\u8BB0" }
       ];
-      var phases = [];
-      if (phaseType === "single") {
-        phases = [{ key: "p1", name: "\u5B66\u4E60", color: pal[0], fields: defaultFieldsSimple }];
-      } else if (phaseType === "custom") {
-        var p1 = ($("scat-phase1").value || "").trim() || "\u57FA\u7840\u5B66\u4E60";
-        var p2 = ($("scat-phase2").value || "").trim() || "\u63D0\u5347\u9636\u6BB5";
-        phases = [{ key: "p1", name: p1, color: pal[0], fields: clone(defaultFieldsBasic) }, { key: "p2", name: p2, color: pal[1], fields: clone(defaultFieldsImprove) }];
-      } else {
-        phases = [{ key: "p1", name: "\u57FA\u7840\u5B66\u4E60", color: pal[0], fields: clone(defaultFieldsBasic) }, { key: "p2", name: "\u63D0\u5347\u9636\u6BB5", color: pal[1], fields: clone(defaultFieldsImprove) }];
-      }
+      var phases = phaseNames.map(function(name, i) {
+        var fields;
+        if (phaseCount === 1) fields = clone(defaultFieldsSimple);
+        else if (i === 0) fields = clone(defaultFieldsBasic);
+        else if (i === phaseCount - 1) fields = clone(defaultFieldsImprove);
+        else fields = clone(defaultFieldsSimple);
+        return { key: "p" + (i + 1), name: name, color: pal[i % pal.length], fields: fields };
+      });
       var modules = modList.map(function(m, i) {
         var modPhases = phases.map(function (p, pi) {
           return { key: m.name + "_" + p.key, name: p.name, color: m.color, fields: p.fields ? clone(p.fields) : null };
@@ -9497,7 +9543,9 @@ function defaultData() {
       var localData = clone(Store.data);
       var merged = (remoteData && remoteData.settings) ? mergeSyncData(remoteData, localData) : localData;
       var localCloudCfg = clone(cfg);
-      merged.settings = merged.settings || {};
+      /* settings（含字体大小等显示偏好）始终以「发起同步的当前设备」为准，不随云端回写，
+         避免手机端一推送就被电脑的字体大小覆盖（各端独立保留自己的设置） */
+      merged.settings = clone(localData.settings) || {};
       merged.settings.cloudSync = localCloudCfg;
       Store.data = merged; Store.save();
       /* 2) 上传合并后的合集（整包，含双方所有记录）
@@ -9555,7 +9603,9 @@ function defaultData() {
       var localData = clone(Store.data);
       var merged = mergeSyncData(localData, remoteObj);   // 云端优先，本地独有记录保留
       var localCloudCfg = clone(cfg);
-      merged.settings = merged.settings || {};
+      /* settings（含字体大小等显示偏好）始终以「发起同步的当前设备」为准，不随云端回写，
+         避免手机端一拉取就被电脑的字体大小覆盖（各端独立保留自己的设置） */
+      merged.settings = clone(localData.settings) || {};
       merged.settings.cloudSync = localCloudCfg;
       Store.data = merged; Store.save();
       setCloudSyncStatus("拉取成功（已合并） " + new Date().toLocaleString());

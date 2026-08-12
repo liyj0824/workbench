@@ -5,6 +5,10 @@
 :root { --sys-font-serif: "Noto Serif SC","Songti SC","STSong","SimSun","宋体","Source Han Serif SC",serif; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* 学习项目阶段数量输入：隐藏原生上下箭头，只用自定义 ± 按钮，避免与自定义按钮重复触发 */
+#scat-phase-count::-webkit-inner-spin-button,
+#scat-phase-count::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#scat-phase-count { -moz-appearance: textfield; appearance: textfield; }
 :root {
   /* 莫兰迪奶绿 + 米色卡其 */
   --cream: #f7f5ed;        /* 宣纸奶白底 */
