@@ -8653,7 +8653,7 @@ function defaultData() {
     /* 原「图片区」已整体替换为大字号详情分点（PRD 8） */
     var html = '<div class="coll-drawer-title">' + esc(it.name) + '</div>' +
       collFactsHtml(it, { big: true, price: true, date: true }) +
-      (it.note ? '<div class="coll-drawer-note"><span class="cdn-k">备注</span>' + esc(it.note) + '</div>' : '') +
+      (it.note ? '<div class="coll-drawer-note"><span class="cdn-k">备注：</span><span class="cdn-v">' + esc(it.note) + '</span></div>' : '') +
       '<div class="coll-drawer-tags">' + (it.tags || []).map(function (t) { return '<span class="coll-tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; }).join("") + '</div>' +
       (it.link ? '<div class="coll-drawer-link"><a class="coll-drawer-link-a" data-link="' + esc(it.link) + '" onclick="event.stopPropagation();openCollectionLink(this.getAttribute(\'data-link\'));return false;">' + esc(it.link) + '</a></div>' : '') +
       '<div class="coll-drawer-actions"><button class="btn-secondary" id="cdw-edit">编辑</button><button class="btn-secondary danger" id="cdw-del">删除</button></div>';

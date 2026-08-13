@@ -3267,14 +3267,14 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
 .coll-name { font-size: 16px; font-weight: 700; color: var(--ink); line-height: 1.4; word-break: break-word; }
 .coll-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .coll-facts li { display: flex; font-size: 12px; line-height: 1.45; }
-.coll-facts .cf-k { flex: 0 0 58px; color: #9a917f; }
+.coll-facts .cf-k { flex: 0 0 auto; min-width: 58px; color: #9a917f; white-space: nowrap; }
 .coll-facts .cf-v { color: var(--ink); word-break: break-word; }
 .coll-facts .cf-v.coll-status-want { color: #a86b3a; font-weight: 600; }
 .coll-facts .cf-v.coll-status-rebuy { color: #3a6b4a; font-weight: 600; }
 .coll-facts .cf-v.coll-status-custom { color: #7a5f8f; font-weight: 600; }
 .coll-facts.big { gap: 11px; margin: 12px 0; }
 .coll-facts.big li { font-size: 15px; }
-.coll-facts.big .cf-k { flex: 0 0 76px; color: #8a8068; font-weight: 600; }
+.coll-facts.big .cf-k { flex: 0 0 auto; min-width: 76px; color: #8a8068; font-weight: 600; white-space: nowrap; }
 .coll-facts.big .cf-v { font-size: 16px; }
 .coll-note { font-size: 13px; color: #8a8068; line-height: 1.45; max-height: 38px; overflow: hidden; }
 .coll-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
@@ -3394,7 +3394,9 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
 .coll-drawer-title { font-size: 18px; font-weight: 700; color: var(--green-dark); margin-bottom: 8px; }
 .coll-drawer-meta { font-size: 12px; color: #8a8068; margin-bottom: 10px; }
 .coll-drawer-price { font-size: 13px; color: var(--green-deep); margin-bottom: 10px; }
-.coll-drawer-note { font-size: 14px; line-height: 1.6; color: var(--ink); margin-bottom: 12px; white-space: pre-wrap; }
+.coll-drawer-note { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.6; color: var(--ink); margin-bottom: 12px; white-space: pre-wrap; }
+.coll-drawer-note .cdn-k { color: #888780; flex-shrink: 0; }
+.coll-drawer-note .cdn-v { color: var(--ink); }
 .coll-drawer-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .coll-drawer-link { word-break: break-all; font-size: 12px; margin-bottom: 16px; }
 .coll-drawer-link a { color: var(--blue); }
@@ -3487,7 +3489,7 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
   .csl-row { padding: 12px 13px; }
   .csl-name { font-size: 15px; }
   .coll-drawer-sheet { max-height: 84vh; }
-  .coll-facts.big .cf-k { flex-basis: 64px; }
+  .coll-facts.big .cf-k { flex-basis: auto; min-width: 64px; }
   .modal-x { width: 44px; height: 44px; font-size: 17px; }   /* 手机端：更大的触控关闭按钮（44px） */
   .modal-xwrap { top: 0; }
 
