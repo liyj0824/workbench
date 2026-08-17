@@ -224,7 +224,7 @@ function defaultData() {
         inspiration: []
       },
       life: {
-        order: ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "cardwall"],
+        order: ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "cardwall", "deposits"],
         hidden: [],
         homeVisible: ["weather", "memo"],
         weather: { city: "鞍山市", temp: null, precip: 0, today: null, tomorrow: null },
@@ -245,7 +245,8 @@ function defaultData() {
         travel: { trips: [], defaultPackTags: defaultTravelPackTags() },
         docs: [],
         collection: { items: [], tags: [], view: "card", filterCat: "all", filterSub: null, filterTag: null, filterSource: "", sortBy: "time-desc", q: "", seeded: false },
-        cardBg: { weather: null, period: null, meds: null, weight: null, memo: null, todo: null, accounts: null, wardrobe: null, travel: null, docs: null, collection: null, cardwall: null }
+        deposits: { enabled: true },
+        cardBg: { weather: null, period: null, meds: null, weight: null, memo: null, todo: null, accounts: null, wardrobe: null, travel: null, docs: null, collection: null, cardwall: null, deposits: null }
       },
       countdowns: []
     };
@@ -260,7 +261,8 @@ function defaultData() {
     { key: "docs", name: "证件记录" },
     { key: "travel", name: "旅游计划" },
     { key: "collection", name: "云收藏柜" },
-    { key: "cardwall", name: "动态卡面" }
+    { key: "cardwall", name: "动态卡面" },
+    { key: "deposits", name: "银行存单" }
   ];
   var SEASONS = [["spring", "春"], ["summer", "夏"], ["autumn", "秋"], ["winter", "冬"]];
   var WCATS = [["top", "衣服"], ["pants", "裤子"], ["shoes", "鞋子"], ["acc", "配饰"]];
@@ -318,6 +320,7 @@ function defaultData() {
             if (!this.data.life.travel) this.data.life.travel = clone(d.life.travel || defaultData().life.travel);
             if (!this.data.life.docs) this.data.life.docs = [];
             if (!this.data.life.todo) this.data.life.todo = [];
+            if (!this.data.life.deposits) this.data.life.deposits = { enabled: true };
             /* 云收藏柜：旧数据没有该字段，补全并逐项兜底 */
             if (!this.data.life.collection) this.data.life.collection = clone(d.life.collection || defaultData().life.collection);
             var coll = this.data.life.collection;
@@ -3013,6 +3016,7 @@ function defaultData() {
   function getHomeModuleOrder() {
     var s = Store.data.settings;
     if (!s.homeModuleOrder) s.homeModuleOrder = HOME_MODULE_DEFAULTS.slice();
+    s.homeModuleOrder = s.homeModuleOrder.filter(function (m) { return m !== "overview"; });
     if (!s.homeModuleVisible) {
       s.homeModuleVisible = {};
       HOME_MODULE_DEFAULTS.forEach(function(m) { s.homeModuleVisible[m] = true; });
@@ -3179,6 +3183,8 @@ function defaultData() {
   }
 
   /* ============ 主页倒计时模块 ============ */
+  var cdFilterCat = "全部";
+  var CD_CATS = ["证件", "考试", "生活", "其他"];
   function ensureCountdowns() {
     if (!Store.data.countdowns) Store.data.countdowns = [];
   }
@@ -3189,32 +3195,48 @@ function defaultData() {
     var addBtn = $("cd-add");
     if (addBtn) addBtn.onclick = function () { openCountdownForm(-1); };
     var list = Store.data.countdowns;
-    if (list.length === 0) {
-      box.innerHTML = '<div class="cd-empty" style="text-align:center;padding:20px 0;color:#bbb;font-size:13px;">点击 + 新建倒计时</div>';
-      return;
-    }
-    var today = todayStr();
-    var html = '';
-    list.forEach(function (item, idx) {
-      var diff = dayDiff(today, item.targetDate);
+    /* 分类 Tab（D2）：全部 + 实际出现的分类 */
+    var cats = ["全部"];
+    list.forEach(function (i) { var c = i.cat || "其他"; if (cats.indexOf(c) < 0) cats.push(c); });
+    if (cdFilterCat && cats.indexOf(cdFilterCat) < 0) cdFilterCat = "全部";
+    var tabHtml = '<div class="cd-tabs">' + cats.map(function (c) {
+      return '<span class="cd-tab' + (c === cdFilterCat ? " active" : "") + '" data-cat="' + esc(c) + '">' + esc(c) + "</span>";
+    }).join("") + "</div>";
+    /* 单条 HTML（带真实索引，供编辑/删除用） */
+    function itemHtml(item, idx) {
+      var diff = dayDiff(todayStr(), item.targetDate);
       var absDiff = Math.abs(diff);
-      var statusClass, statusText, dayLabel;
-      if (diff > 0) { statusClass = "cd-future"; statusText = "剩余"; dayLabel = "天"; }
-      else if (diff === 0) { statusClass = "cd-today"; statusText = "今天"; dayLabel = ""; }
-      else { statusClass = "cd-past"; statusText = "已过"; dayLabel = "天"; }
-      var colorStyle = item.color ? 'style="border-left:3px solid ' + esc(item.color) + '"' : '';
-      html += '<div class="cd-item ' + statusClass + '" ' + colorStyle + ' data-cd-idx="' + idx + '">'
-        + '<div class="cd-name">' + esc(item.name || "未命名") + '</div>'
-        + '<div class="cd-info">'
-        + '<span class="cd-date">' + esc(item.targetDate) + '</span>'
-        + (diff !== 0 ? '<span class="cd-days"><b>' + absDiff + '</b> ' + dayLabel + '</span>' : '<span class="cd-days cd-today-badge">今天</span>')
+      var statusClass = diff > 0 ? "cd-future" : (diff === 0 ? "cd-today" : "cd-past");
+      var colorStyle = item.color ? 'style="border-left:3px solid ' + esc(item.color) + '"' : "";
+      return '<div class="cd-item ' + statusClass + '" ' + colorStyle + ' data-cd-idx="' + idx + '">'
+        + '<div class="cd-name">' + esc(item.name || "未命名") + (item.cat && item.cat !== "其他" ? ' <span class="cd-cat-pill">' + esc(item.cat) + "</span>" : "") + "</div>"
+        + '<div class="cd-info"><span class="cd-date">' + esc(item.targetDate) + "</span>"
+        + (diff !== 0 ? '<span class="cd-days"><b>' + absDiff + "</b> 天</span>" : '<span class="cd-days cd-today-badge">今天</span>')
         + '</div>'
         + '<div class="cd-actions">'
         + '<button class="mini-btn" data-cd-edit="' + idx + '" title="编辑">编辑</button>'
         + '<button class="mini-btn cd-del-btn" data-cd-del="' + idx + '" title="删除">×</button>'
         + '</div></div>';
+    }
+    if (list.length === 0) {
+      box.innerHTML = tabHtml + '<div class="cd-empty" style="text-align:center;padding:20px 0;color:#bbb;font-size:13px;">点击 + 新建倒计时</div>';
+      bindCdTabs(); return;
+    }
+    var activeHtml = "", expiredHtml = "";
+    list.forEach(function (item, idx) {
+      if (cdFilterCat !== "全部" && (item.cat || "其他") !== cdFilterCat) return; /* D2 分类过滤 */
+      if (dayDiff(todayStr(), item.targetDate) < 0) expiredHtml += itemHtml(item, idx); /* D3 过期归档 */
+      else activeHtml += itemHtml(item, idx);
     });
-    box.innerHTML = html;
+    var body = tabHtml;
+    body += activeHtml || '<div class="cd-empty" style="text-align:center;padding:14px 0;color:#bbb;font-size:13px;">该分类下暂无倒计时</div>';
+    var expiredCount = (expiredHtml.match(/data-cd-idx=/g) || []).length;
+    if (expiredCount > 0) {
+      body += '<details class="cd-expired"><summary>📦 已过期 ' + expiredCount + ' 条（点击展开）</summary>' + expiredHtml
+        + '<div style="text-align:right;margin-top:6px"><button class="mini-btn" id="cd-clean">🧹 清理过期</button></div></details>';
+    }
+    box.innerHTML = body;
+    bindCdTabs();
     /* 绑定事件 */
     box.querySelectorAll("[data-cd-edit]").forEach(function(btn) {
       btn.onclick = function () { openCountdownForm(+this.getAttribute("data-cd-edit")); };
@@ -3227,6 +3249,20 @@ function defaultData() {
         });
       };
     });
+    var clean = $("cd-clean");
+    if (clean) clean.onclick = function () {
+      confirmDelete("清理过期倒计时", "将删除所有已过期的倒计时，确定吗？", function () {
+        var t = todayStr();
+        Store.data.countdowns = Store.data.countdowns.filter(function (it) { return dayDiff(t, it.targetDate) >= 0; });
+        Store.save(); renderHomeCountdown(); toast("已清理过期倒计时");
+      });
+    };
+  }
+  function bindCdTabs() {
+    var box = $("cd-list"); if (!box) return;
+    box.querySelectorAll(".cd-tab").forEach(function (t) {
+      t.onclick = function () { cdFilterCat = t.getAttribute("data-cat"); renderHomeCountdown(); };
+    });
   }
   function openCountdownForm(editIdx) {
     ensureCountdowns();
@@ -3234,6 +3270,7 @@ function defaultData() {
     var name = item ? item.name : "";
     var target = item ? item.targetDate : "";
     var color = item ? item.color : "#5f7a5a";
+    var cat = item ? (item.cat || "其他") : "其他";
     var title = editIdx >= 0 ? "编辑倒计时" : "新建倒计时";
     /* 目标日期展示文本：有值则显示值，否则显示提示 */
     var dispDate = target || "请选择目标日期";
@@ -3241,6 +3278,7 @@ function defaultData() {
     var html = '<h3 style="margin:0 0 12px;">' + title + '</h3>'
       + '<div class="row"><label>名称</label><input id="cd-f-name" type="text" value="' + esc(name) + '" placeholder="如：身份证到期、考试日" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;"></div>'
       + '<div class="row"><label>目标日期</label><button type="button" id="cd-f-date-pick" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fafafa;text-align:left;color:' + dispColor + ';"><span id="cd-f-date-disp">' + esc(dispDate) + '</span></button></div>'
+      + '<div class="row"><label>分类</label><select id="cd-f-cat">' + CD_CATS.map(function (c) { return '<option' + (c === cat ? " selected" : "") + '>' + c + "</option>"; }).join("") + '</select></div>'
       + '<div class="row"><label>颜色标记（可选）</label><input id="cd-f-color" type="color" value="' + esc(color) + '" style="width:50px;height:36px;border:none;border-radius:8px;cursor:pointer;"></div>'
       + '<div class="form-actions" style="margin-top:14px;"><button class="btn-secondary" id="cd-f-cancel">取消</button><button class="btn-primary" id="cd-f-save">保存</button></div>';
     openModal(html);
@@ -3260,9 +3298,10 @@ function defaultData() {
       var n = ($("cd-f-name") ? $("cd-f-name").value.trim() : "");
       var d = target;
       var c = ($("cd-f-color") ? $("cd-f-color").value : "#5f7a5a");
+      var catVal = ($("cd-f-cat") ? $("cd-f-cat").value : "其他");
       if (!n) { toast("请输入名称"); return; }
       if (!d) { toast("请选择目标日期"); return; }
-      var obj = { id: item ? item.id : uid(), name: n, targetDate: d, color: c };
+      var obj = { id: item ? item.id : uid(), name: n, targetDate: d, color: c, cat: catVal };
       if (editIdx >= 0) { Store.data.countdowns[editIdx] = obj; }
       else { Store.data.countdowns.push(obj); }
       Store.save(); closeModal(); renderHomeCountdown();
@@ -3965,7 +4004,12 @@ function defaultData() {
     /* 方案A：阶段颜色统一跟随模块色，已移除逐阶段取色圆圈（#study-swatches） */
         /* 列表渲染 —— 按字段定义顺序依次显示，不猜测 */
     var ul = $("study-list"); ul.innerHTML = "";
-    var list = curPhaseRecords();
+    /* 列表渲染：按「录入时间」从新到旧排在最上面（最新新增的在最顶），老记录自动沉底；
+       没有 createdAt 的旧数据排到最后，保持稳定顺序，不破坏原有相对排列 */
+    var list = curPhaseRecords().slice().sort(function (a, b) {
+      var ca = a.createdAt || 0, cb = b.createdAt || 0;
+      return cb - ca;
+    });
     var phaseFields = cp.fields || getDefaultPhaseFields(m, cp);
     list.forEach(function (it) {
       var li = document.createElement("li");
@@ -4255,7 +4299,7 @@ function defaultData() {
         var info = itemNames[selectedItem];
         var startNum = info.lastNum + 1;
         for (var i = 0; i < count; i++) {
-          var obj = { id: uid(), date: qrDate };
+          var obj = { id: uid(), date: qrDate, createdAt: Date.now() };
           if (nameField) obj[nameField.key] = selectedItem;
           if (numField) obj[numField.key] = String(startNum + i).padStart(2, "0");
           phaseFields.forEach(function (f) {
@@ -4277,7 +4321,7 @@ function defaultData() {
         if (!chVal) { toast("请输入章节"); return; }
         if (!p1Val) { toast("请输入起始页码"); return; }
 
-        var obj = { id: uid(), date: qrDate };
+        var obj = { id: uid(), date: qrDate, createdAt: Date.now() };
         if (nameField) obj[nameField.key] = selectedItem;
         if (chapterField) obj[chapterField.key] = chVal;
         if (pageField) obj[pageField.key] = String(p1Val).padStart(2,"0") + "-" + String(p2Val).padStart(2,"0");
@@ -4419,7 +4463,7 @@ function defaultData() {
       flushPendingTags(); /* 移动端：先解析标签输入框里的批量文本 */
       var file = $("sf-photo") && $("sf-photo").files && $("sf-photo").files[0];
       function commit() {
-        var obj = { id: it ? it.id : uid() };
+        var obj = { id: it ? it.id : uid(), createdAt: it ? (it.createdAt || Date.now()) : Date.now() };
         obj.date = sfDate || todayStr();
         /* 收集各字段值 */
         fields.forEach(function(f, fi) {
@@ -4858,7 +4902,10 @@ function defaultData() {
           (n.plot || []).indexOf(filter) >= 0 || (n.author || []).indexOf(filter) >= 0;
         if (!inTags) return false;
       }
-      if (search && (n.name || "").toLowerCase().indexOf(search) < 0) return false;
+      if (search) {
+        var _hay = [n.name, n.charText].concat(n.perspective || [], n.progress || [], n.plot || [], n.author || []).join(" ").toLowerCase();
+        if (_hay.indexOf(search) < 0) return false;
+      }
       return true;
     });
     if (!list.length) {
@@ -4973,9 +5020,22 @@ function defaultData() {
     });
     $("tg-close").onclick = closeModal;
   }
+  var inspTagFilter = "";
   function renderInspList() {
     var ul = $("insp-list"); ul.innerHTML = "";
-    Store.data.ent.inspiration.forEach(function (it) {
+    var items = Store.data.ent.inspiration.filter(function (it) { return !inspTagFilter || (it.tags || []).indexOf(inspTagFilter) >= 0; });
+    if (inspTagFilter) {
+      var bar = document.createElement("div"); bar.className = "insp-filter-bar";
+      bar.innerHTML = '筛选标签：<b>#' + esc(inspTagFilter) + '</b> <button class="mini-btn" id="insp-filter-reset">显示全部</button>';
+      ul.appendChild(bar);
+      var rb = $("insp-filter-reset"); if (rb) rb.onclick = function () { inspTagFilter = ""; renderInspList(); };
+    }
+    if (!items.length) {
+      var empty = document.createElement("li"); empty.className = "hint"; empty.style.cssText = "background:none;box-shadow:none;text-align:center;padding:24px 0;";
+      empty.textContent = inspTagFilter ? "该标签下还没有灵感" : "还没有灵感记录，点击底部添加吧";
+      ul.appendChild(empty); return;
+    }
+    items.forEach(function (it) {
       var li = document.createElement("li");
       li.className = "insp-card";
       var raw = it.html || "";
@@ -4983,10 +5043,14 @@ function defaultData() {
       if (preview.length > 48) preview = preview.slice(0, 48) + "…";
       li.innerHTML = '<div class="it-title">' + esc(it.title || "灵感") + '<span class="chev">▾</span></div>' +
         '<div class="it-preview">' + esc(preview) + '</div>' +
+        (it.tags && it.tags.length ? '<div class="insp-tags">' + it.tags.map(function (t) { return '<span class="insp-tag" data-tag="' + esc(t) + '">#' + esc(t) + '</span>'; }).join("") + '</div>' : '') +
         '<div class="it-full">' + raw + '</div>' +
         '<div class="it-actions"><button data-act="edit">编辑</button><button data-act="del" class="del">删除</button></div>';
       li.setAttribute("data-id", it.id);
-      li.addEventListener("click", function (e) { if (e.target.closest(".it-actions")) return; li.classList.toggle("expanded"); });
+      li.addEventListener("click", function (e) { if (e.target.closest(".it-actions") || e.target.closest(".insp-tag")) return; li.classList.toggle("expanded"); });
+      li.querySelectorAll(".insp-tag").forEach(function (tg) {
+        tg.onclick = function (e) { e.stopPropagation(); inspTagFilter = tg.getAttribute("data-tag"); renderInspList(); };
+      });
       ul.appendChild(li);
     });
   }
@@ -4996,13 +5060,16 @@ function defaultData() {
       '<input id="if-title" placeholder="标题" value="' + (it ? esc(it.title) : "") + '">' +
       '<div class="rte-tools"><button data-c="bold">B</button><button data-c="italic">I</button><button data-c="insertUnorderedList">• 列表</button></div>' +
       '<div class="rte" id="if-rte" contenteditable="true">' + (it ? it.html : "") + '</div>' +
-      '<input id="if-photo" type="file" accept="image/*" style="margin-top:8px;">' +
+      '<div class="row"><label>标签（回车添加）</label><div class="insp-taginput" id="if-tagwrap"></div></div>' +
       '<div class="form-actions"><button class="btn-secondary" id="if-cancel">返回</button><button class="btn-primary" id="if-save">保存</button></div>', "insp-modal");
     $("if-cancel").onclick = closeModal;
     $("if-rte").previousElementSibling.querySelectorAll("button").forEach(function (b) { b.onclick = function () { document.execCommand(b.getAttribute("data-c"), false, null); }; });
+    if (!Store.data.ent.inspTags) Store.data.ent.inspTags = [];
+    var inspTags = it ? (it.tags || []).slice() : [];
+    createTagControl($("if-tagwrap"), Store.data.ent.inspTags, inspTags, { placeholder: "如：脑洞、摘抄（回车存标签·空回车跳走）" });
     $("if-save").onclick = function () {
       var html = $("if-rte").innerHTML;
-      var obj = { id: it ? it.id : uid(), title: $("if-title").value.trim() || "灵感", html: html };
+      var obj = { id: it ? it.id : uid(), title: $("if-title").value.trim() || "灵感", html: html, tags: inspTags };
       if (it) { var i = Store.data.ent.inspiration.indexOf(it); Store.data.ent.inspiration[i] = obj; } else Store.data.ent.inspiration.unshift(obj);
       Store.save(); closeModal(); renderInspList(); toast("已保存");
     };
@@ -5033,7 +5100,8 @@ function defaultData() {
     var f = LIFE_FEATS.filter(function (x) { return x.key === key; })[0];
     if (!f) { box.innerHTML = '<p class="hint">从左侧选择功能</p>'; return; }
     var bg = Store.data.life.cardBg[key];
-    var html = '<div class="life-card" id="lc"><h3>' + esc(f.name) + '<button class="mini-btn bg-btn" id="lc-bg">背景</button><button class="mini-btn danger" id="lc-hide">隐藏</button></h3>';
+    var depBadge = (key === "deposits") ? '<span class="dep-home-badge" id="dep-home-badge"></span>' : '';
+    var html = '<div class="life-card" id="lc"><h3>' + esc(f.name) + depBadge + '<button class="mini-btn bg-btn" id="lc-bg">背景</button><button class="mini-btn danger" id="lc-hide">隐藏</button></h3>';
     if (key === "weather") html += lifeWeatherHtml();
     else if (key === "period") html += lifePeriodHtml();
     else if (key === "meds") html += lifeMedsHtml();
@@ -5046,6 +5114,7 @@ function defaultData() {
     else if (key === "docs") html += lifeDocsHtml();
     else if (key === "collection") html += lifeCollectionHtml();
     else if (key === "cardwall") html += lifeCardwallHtml();
+    else if (key === "deposits") html += lifeDepositsHtml();
     html += '</div>';
     box.innerHTML = html;
     applyBg($("lc"), bg);
@@ -7517,6 +7586,8 @@ function defaultData() {
           function () { var t = find(); if (!t) return; confirmDelete("删除待办？", t.text, function () { L2.todo = L2.todo.filter(function (x) { return x.id !== t.id; }); Store.save(); renderLifeMain(); }, function () { renderLifeMain(); }); }
         );
       });
+    } else if (key === "deposits") {
+      depInit();
     }
   }
   function fetchWeather() {
@@ -8077,7 +8148,7 @@ function defaultData() {
     /* 状态与「零食」分类强绑定（PRD 补充）：非零食分类即使存有旧数据也严禁显示 */
     if (it.cat === "snack" && it.status) rows.push({ k: "状态", v: st.name, cls: st.cls });
     if (opt && opt.price && it.price) rows.push({ k: "价格", v: "¥" + it.price });
-    if (opt && opt.date && it.purchaseDate) rows.push({ k: "购买于", v: it.purchaseDate });
+    /* X5 清理死代码：移除「购买于」死展示（用户未选 purchaseDate 功能，避免误导） */
     return rows;
   }
   function collFactsHtml(it, opt) {
@@ -8636,7 +8707,7 @@ function defaultData() {
       var statusVal = (isSnack && $("ce-status")) ? $("ce-status").value : "";
       var obj = {
         id: it ? it.id : uid(), name: name, cat: $("ce-cat").value, sub: $("ce-sub").value,
-        status: statusVal, price: isSnack ? ($("ce-price") ? $("ce-price").value.trim() : "") : "", purchaseDate: "",
+        status: statusVal, price: isSnack ? ($("ce-price") ? $("ce-price").value.trim() : "") : "",
         tags: draftTags, source: $("ce-source").value, link: $("ce-link").value.trim(),
         note: $("ce-note").value.trim(), createdAt: it ? it.createdAt : Date.now()
       };
@@ -9483,6 +9554,132 @@ function defaultData() {
     if (a && typeof a === "object" && !Array.isArray(a) && b && typeof b === "object" && !Array.isArray(b)) return mergeObjects(a, b);
     return b;
   }
+  /* ===== 同步增强：冲突检测 / 手动选择 / 合并条数 ===== */
+  var pendingSync = null;
+  function countSyncRecords(obj) {
+    if (!obj || typeof obj !== "object") return 0;
+    var total = 0;
+    ["study", "ent", "life", "countdowns"].forEach(function (k) {
+      var v = obj[k];
+      if (Array.isArray(v)) total += v.length;
+      else if (v && typeof v === "object") { Object.keys(v).forEach(function (k2) { if (Array.isArray(v[k2])) total += v[k2].length; }); }
+    });
+    return total;
+  }
+  function deepEqualSync(a, b) {
+    try { var f = function (k, v) { return k === "_mid" ? undefined : v; }; return JSON.stringify(a, f) === JSON.stringify(b, f); }
+    catch (e) { return false; }
+  }
+  function detectSyncConflicts(local, remote) {
+    var keys = ["study", "ent", "life", "countdowns"];
+    var conflicts = [];
+    keys.forEach(function (key) {
+      var la = (local && local[key]) || [], rb = (remote && remote[key]) || [];
+      if (!Array.isArray(la) || !Array.isArray(rb)) return;
+      var rmap = {}; rb.forEach(function (el) { var id = ensureMid(el); if (id) rmap[id] = el; });
+      la.forEach(function (el) {
+        var id = ensureMid(el); if (!id) return;
+        var other = rmap[id];
+        if (other && !deepEqualSync(el, other)) conflicts.push({ key: key, id: id, local: el, remote: other });
+      });
+    });
+    return conflicts;
+  }
+  function removeById(arr, id) {
+    if (Array.isArray(arr)) for (var i = arr.length - 1; i >= 0; i--) { if (ensureMid(arr[i]) === id) arr.splice(i, 1); }
+  }
+  function stripDefeated(local, remote, decisions) {
+    var localCopy = clone(local), remoteCopy = clone(remote);
+    decisions.forEach(function (d) {
+      if (d.use === "local") removeById(remoteCopy[d.key], d.id); else removeById(localCopy[d.key], d.id);
+    });
+    return { local: localCopy, remote: remoteCopy };
+  }
+  function describeSyncRecord(key, rec) {
+    if (!rec || typeof rec !== "object") return "(记录)";
+    var z = { study: "学习", ent: "娱乐", life: "生活", countdowns: "倒计时" }[key] || key;
+    var t = rec.title || rec.name || rec.bank || rec.content || rec.text || rec.event || "";
+    if (typeof t === "string") t = t.slice(0, 36);
+    return z + "：" + (t || "(无标题)");
+  }
+  function finalizeMerged(merged, localData, cfg) {
+    var localCloudCfg = clone(cfg);
+    merged.settings = clone(localData.settings) || {};
+    merged.settings.cloudSync = localCloudCfg;
+    return merged;
+  }
+  async function uploadMerged(merged, hasRemote, cfg, userId) {
+    var payload = await encryptSyncData(JSON.stringify(merged), cfg.code);
+    var resp;
+    if (hasRemote) {
+      resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId), {
+        method: "PATCH", headers: getSupabaseHeaders(cfg.key),
+        body: JSON.stringify({ payload: payload, updated_at: new Date().toISOString() })
+      });
+    } else {
+      var body = { user_id: userId, payload: payload, updated_at: new Date().toISOString() };
+      resp = await fetch(cfg.url + "/rest/v1/workbench_sync", {
+        method: "POST", headers: Object.assign(getSupabaseHeaders(cfg.key), { "Prefer": "resolution=merge-duplicates" }),
+        body: JSON.stringify(body)
+      });
+      if (resp.status === 409) {
+        resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId), {
+          method: "PATCH", headers: getSupabaseHeaders(cfg.key),
+          body: JSON.stringify({ payload: payload, updated_at: new Date().toISOString() })
+        });
+      }
+    }
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+  }
+  function clearSyncConflicts() { var el = $("set-cloud-conflicts"); if (el) el.innerHTML = ""; }
+  function renderSyncConflicts() {
+    var box = $("set-cloud-conflicts"); if (!box) return;
+    var ps = pendingSync; if (!ps) { box.innerHTML = ""; return; }
+    var html = '<div class="sync-conflict-box"><div class="sync-conflict-head">⚠️ 检测到 ' + ps.conflicts.length + ' 条冲突（同一记录两端都改过）。请为每条选择保留哪个版本：</div>';
+    ps.conflicts.forEach(function (c, idx) {
+      var sel = ps.decisions[idx] || "";
+      html += '<div class="sync-conflict-row" data-idx="' + idx + '">'
+        + '<div class="scr-title">' + esc(describeSyncRecord(c.key, c.local)) + '</div>'
+        + '<div class="scr-opts">'
+        + '<button class="scr-btn ' + (sel === "local" ? "on" : "") + '" data-idx="' + idx + '" data-use="local">用当前设备版</button>'
+        + '<button class="scr-btn ' + (sel === "remote" ? "on" : "") + '" data-idx="' + idx + '" data-use="remote">用云端版（手机）</button>'
+        + '</div></div>';
+    });
+    html += '<div class="sync-conflict-actions">'
+      + '<button class="mini-btn" id="sc-all-local">全用当前设备</button>'
+      + '<button class="mini-btn" id="sc-all-remote">全用云端</button>'
+      + '<button class="mini-btn primary" id="sc-apply">应用并继续同步</button>'
+      + '</div></div>';
+    box.innerHTML = html;
+    box.querySelectorAll(".scr-btn").forEach(function (b) {
+      b.onclick = function () { var idx = +this.getAttribute("data-idx"); ps.decisions[idx] = this.getAttribute("data-use"); renderSyncConflicts(); };
+    });
+    var al = $("sc-all-local"); if (al) al.onclick = function () { ps.conflicts.forEach(function (c, i) { ps.decisions[i] = "local"; }); renderSyncConflicts(); };
+    var ar = $("sc-all-remote"); if (ar) ar.onclick = function () { ps.conflicts.forEach(function (c, i) { ps.decisions[i] = "remote"; }); renderSyncConflicts(); };
+    var ap = $("sc-apply"); if (ap) ap.onclick = applyResolvedSync;
+  }
+  async function applyResolvedSync() {
+    var ps = pendingSync; if (!ps) return;
+    var decisions = ps.conflicts.map(function (c, idx) {
+      return { key: c.key, id: c.id, use: ps.decisions[idx] || (ps.mode === "push" ? "local" : "remote") };
+    });
+    var stripped = stripDefeated(ps.local, ps.remote, decisions);
+    var merged = ps.mode === "push" ? mergeSyncData(stripped.remote, stripped.local) : mergeSyncData(stripped.local, stripped.remote);
+    merged = finalizeMerged(merged, ps.local, getCloudSyncCfg());
+    var cfg = getCloudSyncCfg();
+    pendingSync = null; clearSyncConflicts();
+    setCloudSyncBusy(true);
+    try {
+      if (ps.mode === "push") { ensureCloudDeviceId(); var userId = await hashSyncCode(cfg.code); await uploadMerged(merged, ps.hasRemote, cfg, userId); }
+      Store.data = merged; Store.save(); cfg.lastSyncAt = Date.now(); Store.save();
+      setCloudSyncStatus("✅ " + (ps.mode === "push" ? "推送" : "拉取") + "成功 · 已合并 " + countSyncRecords(merged) + " 条 · " + new Date().toLocaleTimeString());
+      if (ps.mode === "pull") {
+        applyActiveBg(); applyFont(); renderBottomNav();
+        if (state.tab === "home") renderHome(); else if (state.tab === "study") renderStudyMain(); else if (state.tab === "ent") renderEntList(); else if (state.tab === "life") renderLifeMain();
+      }
+    } catch (e) { setCloudSyncStatus((ps.mode === "push" ? "推送" : "拉取") + "失败：" + e.message, true); }
+    finally { setCloudSyncBusy(false); }
+  }
   function mergeSyncData(local, remote) {
     var out = clone(local);
     ["study", "ent", "life", "countdowns"].forEach(function (key) {
@@ -9525,59 +9722,41 @@ function defaultData() {
     if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
     if (cfg.code.length < 8) { setCloudSyncStatus("同步码建议至少 8 位", true); return; }
     setCloudSyncBusy(true);
+    clearSyncConflicts();
     try {
       ensureCloudDeviceId();
       var userId = await hashSyncCode(cfg.code);
-      /* 1) 先取云端现有数据，与本地合并（本地优先），保证不丢云端已有记录 */
-      var remoteData = null;
+      /* 1) 先取云端现有数据，与本地合并前先做冲突检测 */
+      var remoteData = null, hasRemote = false;
       try {
         var g = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId) + "&select=payload&limit=1", { method: "GET", headers: getSupabaseHeaders(cfg.key) });
         if (g.ok) {
           var grows = await g.json();
           if (grows && grows.length) {
-            try { remoteData = JSON.parse(await decryptSyncData(grows[0].payload, cfg.code)); }
+            try { remoteData = JSON.parse(await decryptSyncData(grows[0].payload, cfg.code)); hasRemote = true; }
             catch (de) { throw new Error("云端数据解密失败，可能同步码不一致：" + de.message); }
           }
         }
       } catch (e) { if (e.message && e.message.indexOf("解密失败") >= 0) throw e; /* 其它网络错误则视为无，仅上传本地 */ }
       var localData = clone(Store.data);
-      var merged = (remoteData && remoteData.settings) ? mergeSyncData(remoteData, localData) : localData;
-      var localCloudCfg = clone(cfg);
-      /* settings（含字体大小等显示偏好）始终以「发起同步的当前设备」为准，不随云端回写，
-         避免手机端一推送就被电脑的字体大小覆盖（各端独立保留自己的设置） */
-      merged.settings = clone(localData.settings) || {};
-      merged.settings.cloudSync = localCloudCfg;
-      Store.data = merged; Store.save();
-      /* 2) 上传合并后的合集（整包，含双方所有记录）
-         云端已有该 user_id 记录时用 PATCH 更新，避免 409 唯一约束冲突；
-         仅当云端尚无记录时才 POST 插入。POST 万一仍 409 则降级为 PATCH。 */
-      var payload = await encryptSyncData(JSON.stringify(merged), cfg.code);
-      var body = { user_id: userId, payload: payload, updated_at: new Date().toISOString() };
-      var hasRemote = !!(remoteData && remoteData.settings);
-      var resp;
+      /* 2) 检测同 id 但内容不同的冲突记录；有冲突则暂停，让用户手动选择，不再静默覆盖 */
       if (hasRemote) {
-        resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId), {
-          method: "PATCH",
-          headers: getSupabaseHeaders(cfg.key),
-          body: JSON.stringify({ payload: payload, updated_at: new Date().toISOString() })
-        });
-      } else {
-        resp = await fetch(cfg.url + "/rest/v1/workbench_sync", {
-          method: "POST",
-          headers: Object.assign(getSupabaseHeaders(cfg.key), { "Prefer": "resolution=merge-duplicates" }),
-          body: JSON.stringify(body)
-        });
-        if (resp.status === 409) {
-          resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId), {
-            method: "PATCH",
-            headers: getSupabaseHeaders(cfg.key),
-            body: JSON.stringify({ payload: payload, updated_at: new Date().toISOString() })
-          });
+        var conflicts = detectSyncConflicts(localData, remoteData);
+        if (conflicts.length) {
+          pendingSync = { mode: "push", local: localData, remote: remoteData, conflicts: conflicts, decisions: {}, hasRemote: hasRemote };
+          renderSyncConflicts();
+          setCloudSyncBusy(false);
+          setCloudSyncStatus("⚠️ 检测到 " + conflicts.length + " 条冲突，请选择保留哪一端", true);
+          return;
         }
       }
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      var merged = (hasRemote && remoteData.settings) ? mergeSyncData(remoteData, localData) : localData;
+      merged = finalizeMerged(merged, localData, cfg);
+      /* 3) 上传合并后的合集（整包，含双方所有记录）；云端已有该 user_id 记录时用 PATCH，否则 POST */
+      await uploadMerged(merged, hasRemote, cfg, userId);
+      Store.data = merged; Store.save();
       cfg.lastSyncAt = Date.now(); Store.save();
-      setCloudSyncStatus("推送成功（已合并） " + new Date().toLocaleString());
+      setCloudSyncStatus("✅ 推送成功 · 已合并 " + countSyncRecords(merged) + " 条 · " + new Date().toLocaleTimeString());
     } catch (e) { setCloudSyncStatus("推送失败：" + e.message, true); }
     finally { setCloudSyncBusy(false); }
   }
@@ -9590,6 +9769,7 @@ function defaultData() {
     Store.save();
     if (!cfg.url || !cfg.key || !cfg.code) { setCloudSyncStatus("请填写 URL、anon key 和同步码", true); return; }
     setCloudSyncBusy(true);
+    clearSyncConflicts();
     try {
       var userId = await hashSyncCode(cfg.code);
       var resp = await fetch(cfg.url + "/rest/v1/workbench_sync?user_id=eq." + encodeURIComponent(userId) + "&select=payload,updated_at&limit=1", {
@@ -9601,14 +9781,20 @@ function defaultData() {
       var remoteObj = JSON.parse(await decryptSyncData(rows[0].payload, cfg.code));
       if (!remoteObj || typeof remoteObj !== "object") throw new Error("解密后数据格式不对，请检查同步码");
       var localData = clone(Store.data);
+      /* 检测同 id 但内容不同的冲突记录；有冲突则暂停，让用户手动选择 */
+      var conflicts = detectSyncConflicts(localData, remoteObj);
+      if (conflicts.length) {
+        pendingSync = { mode: "pull", local: localData, remote: remoteObj, conflicts: conflicts, decisions: {}, hasRemote: true };
+        renderSyncConflicts();
+        setCloudSyncBusy(false);
+        setCloudSyncStatus("⚠️ 检测到 " + conflicts.length + " 条冲突，请选择保留哪一端", true);
+        return;
+      }
       var merged = mergeSyncData(localData, remoteObj);   // 云端优先，本地独有记录保留
-      var localCloudCfg = clone(cfg);
-      /* settings（含字体大小等显示偏好）始终以「发起同步的当前设备」为准，不随云端回写，
-         避免手机端一拉取就被电脑的字体大小覆盖（各端独立保留自己的设置） */
-      merged.settings = clone(localData.settings) || {};
-      merged.settings.cloudSync = localCloudCfg;
+      merged = finalizeMerged(merged, localData, cfg);
       Store.data = merged; Store.save();
-      setCloudSyncStatus("拉取成功（已合并） " + new Date().toLocaleString());
+      cfg.lastSyncAt = Date.now(); Store.save();
+      setCloudSyncStatus("✅ 拉取成功 · 已合并 " + countSyncRecords(merged) + " 条 · " + new Date().toLocaleTimeString());
       applyActiveBg(); applyFont(); renderBottomNav();
       if (state.tab === "home") renderHome(); else if (state.tab === "study") renderStudyMain(); else if (state.tab === "ent") renderEntList(); else if (state.tab === "life") renderLifeMain();
     } catch (e) { setCloudSyncStatus("拉取失败：" + e.message, true); }
@@ -10690,4 +10876,924 @@ function defaultData() {
     }).catch(function () {});
    } catch (e) { /* file:// 或隐私模式下忽略 */ }
   });
+
+  /* ===================== 银行存单模块（生活区） =====================
+     设计要点：所有存单数据存 IndexedDB 加密保险库，不进 Store.data，
+     因此天然不参与云端同步（满足「不与电脑端同步」需求）。
+     加密：密码经 PBKDF2 派生 AES-GCM 密钥，主数据密钥 K 再 AES-GCM 加密存储。 */
+  var DEP_SQ = ["你的小学名称是？", "你母亲的姓名是？", "你最喜欢的城市是？"];
+  var DEP_TERMS = ["3个月", "6个月", "1年", "2年", "3年", "其他"];
+  var DEP_LIMIT = 500000; /* 存款保险：同一存款人在同一家银行最高偿付限额 50 万元 */
+  var depDB = null, depSession = null;
+  var depIdleTimer = null, depIdleActive = false;
+  var depUI = { view: "list", selId: null, filter: { status: "all", bank: "", year: "", term: "", owner: "" }, q: "", sort: "mature-asc", formPhotos: [], removedPhotos: [] };
+  /* === 从文字识别填单（结合百度网盘等 OCR 结果，识别不一定准，填后由用户核对修改） === */
+  var depPrefill = null;
+  function depNormDate(s) {
+    if (!s) return "";
+    var m = ("" + s).match(/(\d{4})\s*[年\-\.\/]\s*(\d{1,2})\s*[月\-\.\/]\s*(\d{1,2})/);
+    if (!m) return "";
+    return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
+  }
+  function depParseBank(text) {
+    var banks = ["中国工商银行","工商银行","中国农业银行","农业银行","中国银行","建设银行","交通银行","招商银行","中国邮政储蓄银行","邮储银行","邮政储蓄银行","中信银行","光大银行","民生银行","平安银行","兴业银行","上海浦东发展银行","浦发银行","华夏银行","广发银行","盛京银行","锦州银行","大连银行","渤海银行","浙商银行","北京银行","上海银行","南京银行","宁波银行","江苏银行","杭州银行","徽商银行","青岛银行","长沙银行","成都银行","重庆银行","天津银行","河北银行","中原银行","哈尔滨银行","东莞银行","广州银行","贵阳银行","郑州银行"];
+    for (var i = 0; i < banks.length; i++) if (text.indexOf(banks[i]) >= 0) return banks[i];
+    var m = text.match(/([一-龥]{2,8}银行)/);
+    return m ? m[1] : "";
+  }
+  function depParseOwner(text) {
+    var m = text.match(/(?:户名|客户姓名|姓名|储户)[：:\s]*([一-龥·]{2,6})/);
+    return m ? m[1] : "本人";
+  }
+  function depParseAmount(text) {
+    var re = /(?:存入)?金额[：:\s]*([0-9]+(?:\.[0-9]+)?\s*元?|[一-龥]+元?)/;
+    var m = text.match(re); var raw = m ? m[1] : null;
+    if (!raw) { m = text.match(/(?:本金|存款金额)[：:\s]*([0-9]+(?:\.[0-9]+)?\s*元?|[一-龥]+元?)/); raw = m ? m[1] : null; }
+    if (!raw) { m = text.match(/[¥￥]\s*([0-9]+(?:\.[0-9]+)?)/); raw = m ? m[1] : null; }
+    if (!raw) return null;
+    raw = ("" + raw).replace(/元\s*$/, "").trim();
+    var n = cn2num(raw);
+    if (n != null && !isNaN(n) && n > 0) return n;
+    var num = parseFloat(("" + raw).replace(/[^\d.]/g, ""));
+    return isNaN(num) ? null : num;
+  }
+  function depParseDate(text, label) {
+    var m = text.match(new RegExp(label + "[：:\\s]*(\\d{4}\\s*[年\\-\\.\\/]\\s*\\d{1,2}\\s*[月\\-\\.\\/]\\s*\\d{1,2})"));
+    return m ? depNormDate(m[1]) : "";
+  }
+  function depParseTerm(text) {
+    var m = text.match(/存期[：:\s]*([0-9]+)\s*(年|个月|月|天)/);
+    if (!m) m = text.match(/期限[：:\s]*([0-9]+)\s*(年|个月|月|天)/);
+    if (!m) return "";
+    var n = parseInt(m[1], 10), u = m[2];
+    if (isNaN(n)) return "";
+    if (u === "年") return n + "年";
+    if (u === "个月" || u === "月") return n + "个月";
+    return n + "天";
+  }
+  function depParseRate(text) {
+    var m = text.match(/(?:年)?利率[：:\s]*([0-9.]+)\s*%/);
+    if (!m) m = text.match(/年利率[：:\s]*([0-9.]+)/);
+    return m ? parseFloat(m[1]) : null;
+  }
+  function depParseOCRText(text) {
+    text = (text || "").replace(/\r/g, "");
+    return {
+      bank: depParseBank(text),
+      owner: depParseOwner(text),
+      amount: depParseAmount(text),
+      depositDate: depParseDate(text, "存入日") || depParseDate(text, "起息日") || depParseDate(text, "开户日期"),
+      matureDate: depParseDate(text, "到期日") || depParseDate(text, "支取日"),
+      term: depParseTerm(text),
+      rate: depParseRate(text),
+      note: ""
+    };
+  }
+  function depOpenOCR() {
+    var holder = document.createElement("div");
+    holder.innerHTML = '<div class="dep-mask" id="dep-ocr-mask"><div class="dep-modal"><div class="dep-modal-h"><b>📋 从文字识别填单</b><button class="dep-modal-x" id="dep-ocr-close" type="button">×</button></div>'
+      + '<div class="dep-modal-body">'
+      + '<p class="dep-modal-tip">把手机百度网盘识别出的存单文字粘贴到下面（识别不一定100%准，填好后请逐项核对修改）：</p>'
+      + '<textarea id="dep-ocr-text" style="width:100%;height:150px;font-size:14px;padding:8px;border:1px solid #ddd;border-radius:10px;resize:vertical;" placeholder="例如：\n户名：张三\n开户行：盛京银行\n存入金额：100000元\n存入日：2024年03月15日\n存期：1年\n到期日：2025年03月15日\n年利率：1.75%"></textarea>'
+      + '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button class="dep-btn primary" id="dep-ocr-go" type="button">解析并填单</button><button class="dep-btn" id="dep-ocr-clear" type="button">清空</button></div>'
+      + '<p class="dep-err" id="dep-ocr-err"></p>'
+      + '</div></div></div>';
+    document.body.appendChild(holder.firstChild);
+    var mask = $("dep-ocr-mask");
+    function close() { if (mask) mask.remove(); }
+    $("dep-ocr-close").onclick = close;
+    mask.onclick = function (e) { if (e.target === mask) close(); };
+    $("dep-ocr-clear").onclick = function () { var t = $("dep-ocr-text"); if (t) t.value = ""; };
+    $("dep-ocr-go").onclick = function () {
+      var t = $("dep-ocr-text");
+      if (!t || !t.value.trim()) { var e = $("dep-ocr-err"); if (e) e.textContent = "请先粘贴识别出的文字"; return; }
+      depPrefill = depParseOCRText(t.value);
+      close();
+      depRenderForm(null);
+    };
+  }
+  var depUrlCache = {};
+
+  /* ---------- IndexedDB ---------- */
+  function depIDBOpen() {
+    return new Promise(function (res, rej) {
+      if (depDB) return res(depDB);
+      var req = indexedDB.open("wb_deposits_v1", 1);
+      req.onupgradeneeded = function (e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv");
+        if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos");
+      };
+      req.onsuccess = function (e) { depDB = e.target.result; res(depDB); };
+      req.onerror = function (e) { rej(e.target.error); };
+    });
+  }
+  function depIDBGet(store, key) {
+    return depIDBOpen().then(function (db) { return new Promise(function (res, rej) {
+      var tx = db.transaction(store, "readonly"); var r = tx.objectStore(store).get(key);
+      r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+    }); });
+  }
+  function depIDBPut(store, key, val) {
+    return depIDBOpen().then(function (db) { return new Promise(function (res, rej) {
+      var tx = db.transaction(store, "readwrite"); tx.objectStore(store).put(val, key);
+      tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); };
+    }); });
+  }
+  function depIDBDel(store, key) {
+    return depIDBOpen().then(function (db) { return new Promise(function (res, rej) {
+      var tx = db.transaction(store, "readwrite"); tx.objectStore(store).delete(key);
+      tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); };
+    }); });
+  }
+  function depIDBGetAllPhotos() {
+    return depIDBOpen().then(function (db) { return new Promise(function (res, rej) {
+      var tx = db.transaction("photos", "readonly"); var r = tx.objectStore("photos").getAll();
+      r.onsuccess = function () { res(r.result || []); }; r.onerror = function () { rej(r.error); };
+    }); });
+  }
+
+  /* ---------- 加密工具 ---------- */
+  var depEnc = new TextEncoder(), depDec = new TextDecoder();
+  function depB64ToBytes(b64) { var bin = atob(b64), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; }
+  function depBytesToB64(bytes) { var bin = "", a = new Uint8Array(bytes); for (var i = 0; i < a.length; i++) bin += String.fromCharCode(a[i]); return btoa(bin); }
+  function depDeriveKey(password, saltBytes) {
+    return window.crypto.subtle.importKey("raw", depEnc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"])
+      .then(function (km) { return window.crypto.subtle.deriveKey({ name: "PBKDF2", salt: saltBytes, iterations: 150000, hash: "SHA-256" }, km, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]); });
+  }
+  function depImportRawKey(bytes) {
+    return window.crypto.subtle.importKey("raw", bytes, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  function depAesEncrypt(key, obj) {
+    var iv = window.crypto.getRandomValues(new Uint8Array(12));
+    return window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, depEnc.encode(JSON.stringify(obj)))
+      .then(function (ct) { var out = new Uint8Array(iv.length + ct.byteLength); out.set(iv, 0); out.set(new Uint8Array(ct), iv.length); return depBytesToB64(out); });
+  }
+  function depAesDecrypt(key, b64) {
+    var bytes = depB64ToBytes(b64), iv = bytes.slice(0, 12), ct = bytes.slice(12);
+    return window.crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ct).then(function (pt) { return JSON.parse(depDec.decode(pt)); });
+  }
+  function depAesEncryptBytes(key, bytes) {
+    var iv = window.crypto.getRandomValues(new Uint8Array(12));
+    return window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, bytes)
+      .then(function (ct) { var out = new Uint8Array(iv.length + ct.byteLength); out.set(iv, 0); out.set(new Uint8Array(ct), iv.length); return depBytesToB64(out); });
+  }
+  function depAesDecryptBytes(key, b64) {
+    var bytes = depB64ToBytes(b64), iv = bytes.slice(0, 12), ct = bytes.slice(12);
+    return window.crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ct);
+  }
+  function depSha256(str) {
+    return window.crypto.subtle.digest("SHA-256", depEnc.encode(str))
+      .then(function (buf) { return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join(""); });
+  }
+
+  /* ---------- 保险库读写 ---------- */
+  function depLoadVault() { return depIDBGet("kv", "vault"); }
+  function depSaveVault(rec) { return depIDBPut("kv", "vault", rec); }
+  function depLoadLock() { return depIDBGet("kv", "lock").then(function (l) { return l || { fails: 0, until: 0 }; }); }
+  function depSaveLock(l) { return depIDBPut("kv", "lock", l); }
+
+  async function depSetup(pw, sq) {
+    var salt = window.crypto.getRandomValues(new Uint8Array(16));
+    var pwKey = await depDeriveKey(pw, salt);
+    var Kbytes = window.crypto.getRandomValues(new Uint8Array(32));
+    var Kkey = await depImportRawKey(Kbytes);
+    var wrappedK = await depAesEncryptBytes(pwKey, Kbytes);
+    var verifier = await depAesEncryptBytes(pwKey, depEnc.encode("dep-ok"));
+    var data = { deposits: [], banks: [], secQ: null, settings: {} };
+    var vaultEnc = await depAesEncrypt(Kkey, data);
+    var rec = { salt: depBytesToB64(salt), wrappedK: wrappedK, pwVerifier: verifier, vault: vaultEnc, createdAt: Date.now() };
+    if (sq && sq.answers && sq.answers.length === 3) {
+      var ansStr = DEP_SQ.map(function (q, i) { return q + "||" + sq.answers[i].trim().toLowerCase(); }).join("###");
+      var sqKey = await depDeriveKey(ansStr, salt);
+      var wrappedKsq = await depAesEncryptBytes(sqKey, Kbytes);
+      var ansHashes = [];
+      for (var i = 0; i < 3; i++) ansHashes.push(await depSha256(DEP_SQ[i].trim() + "::" + sq.answers[i].trim().toLowerCase()));
+      rec.secQ = { questions: DEP_SQ.slice(), ansHashes: ansHashes, wrappedKsq: wrappedKsq };
+    }
+    await depSaveVault(rec);
+    depSession = { Kbytes: Kbytes, Kkey: Kkey, data: data, rec: rec };
+    return rec;
+  }
+  async function depUnlock(pw) {
+    var rec = await depLoadVault(); if (!rec) throw new Error("no-vault");
+    var lock = await depLoadLock();
+    if (lock && lock.until && lock.until > Date.now()) throw new Error("locked:" + lock.until);
+    var salt = depB64ToBytes(rec.salt);
+    var pwKey = await depDeriveKey(pw, salt);
+    try { await depAesDecryptBytes(pwKey, rec.pwVerifier); }
+    catch (e) {
+      lock = lock || { fails: 0, until: 0 }; lock.fails = (lock.fails || 0) + 1;
+      if (lock.fails >= 5) lock.until = Date.now() + 15 * 60 * 1000;
+      await depSaveLock(lock);
+      if (lock.until > Date.now()) throw new Error("locked:" + lock.until);
+      throw new Error("wrong");
+    }
+    var Kbytes = await depAesDecryptBytes(pwKey, rec.wrappedK);
+    var Kkey = await depImportRawKey(Kbytes);
+    var data = await depAesDecrypt(Kkey, rec.vault);
+    if (!data.deposits) data.deposits = [];
+    if (!data.banks) data.banks = [];
+    data.deposits.forEach(function (x) { if (x.bank) { var nm = x.bank.trim(); if (nm && !data.banks.some(function (b) { return b.toLowerCase() === nm.toLowerCase(); })) data.banks.push(nm); } });
+    if (lock && lock.fails) await depSaveLock({ fails: 0, until: 0 });
+    depSession = { Kbytes: Kbytes, Kkey: Kkey, data: data, rec: rec };
+    return data;
+  }
+  async function depPersist() {
+    if (!depSession) return;
+    depSession.rec.vault = await depAesEncrypt(depSession.Kkey, depSession.data);
+    depSession.rec.updatedAt = Date.now();
+    await depSaveVault(depSession.rec);
+  }
+  async function depChangePw(oldPw, newPw) {
+    var rec = depSession.rec, salt = depB64ToBytes(rec.salt);
+    var oldKey = await depDeriveKey(oldPw, salt);
+    try { await depAesDecryptBytes(oldKey, rec.pwVerifier); }
+    catch (e) { throw new Error("old-wrong"); }
+    var newKey = await depDeriveKey(newPw, salt);
+    var Kbytes = await depAesDecryptBytes(oldKey, rec.wrappedK);
+    rec.wrappedK = await depAesEncryptBytes(newKey, Kbytes);
+    rec.pwVerifier = await depAesEncryptBytes(newKey, depEnc.encode("dep-ok"));
+    await depSaveVault(rec); depSession.rec = rec;
+  }
+  async function depSetSecQ(answers) {
+    var rec = depSession.rec, salt = depB64ToBytes(rec.salt);
+    var ansStr = DEP_SQ.map(function (q, i) { return q + "||" + answers[i].trim().toLowerCase(); }).join("###");
+    var sqKey = await depDeriveKey(ansStr, salt);
+    var wrappedKsq = await depAesEncryptBytes(sqKey, depSession.Kbytes);
+    var ansHashes = [];
+    for (var i = 0; i < 3; i++) ansHashes.push(await depSha256(DEP_SQ[i].trim() + "::" + answers[i].trim().toLowerCase()));
+    rec.secQ = { questions: DEP_SQ.slice(), ansHashes: ansHashes, wrappedKsq: wrappedKsq };
+    await depSaveVault(rec); depSession.rec = rec;
+  }
+  async function depVerifySecQ(answers) {
+    var rec = depSession.rec; if (!rec || !rec.secQ) return false;
+    for (var i = 0; i < 3; i++) { var h = await depSha256(DEP_SQ[i].trim() + "::" + answers[i].trim().toLowerCase()); if (h !== rec.secQ.ansHashes[i]) return false; }
+    return true;
+  }
+  async function depRecover(newPw, ansStr) {
+    var rec = await depLoadVault(); if (!rec || !rec.secQ) throw new Error("no-secq");
+    var salt = depB64ToBytes(rec.salt);
+    var sqKey = await depDeriveKey(ansStr, salt);
+    var Kbytes = await depAesDecryptBytes(sqKey, rec.secQ.wrappedKsq);
+    var Kkey = await depImportRawKey(Kbytes);
+    var pwKey = await depDeriveKey(newPw, salt);
+    rec.wrappedK = await depAesEncryptBytes(pwKey, Kbytes);
+    rec.pwVerifier = await depAesEncryptBytes(pwKey, depEnc.encode("dep-ok"));
+    await depSaveVault(rec);
+    var data = await depAesDecrypt(Kkey, rec.vault); if (!data.deposits) data.deposits = [];
+    depSession = { Kbytes: Kbytes, Kkey: Kkey, data: data, rec: rec };
+  }
+
+  /* ---------- 照片 ---------- */
+  function depPhotoUrl(id) {
+    if (depUrlCache[id]) return Promise.resolve(depUrlCache[id]);
+    return depIDBGet("photos", id).then(function (rec) {
+      if (!rec || !rec.data) return null;
+      return depAesDecryptBytes(depSession.Kkey, rec.data).then(function (buf) {
+        var blob = new Blob([buf], { type: rec.mime || "image/jpeg" });
+        var url = URL.createObjectURL(blob); depUrlCache[id] = url; return url;
+      });
+    }).catch(function () { return null; });
+  }
+  function depShowPhoto(url) { openModal('<div style="text-align:center"><img src="' + url + '" style="max-width:100%;max-height:70vh;border-radius:10px;"></div>'); }
+
+  /* ---------- 计算 ---------- */
+  function depToday() { var d = new Date(), m = ("0" + (d.getMonth() + 1)).slice(-2), day = ("0" + d.getDate()).slice(-2); return d.getFullYear() + "-" + m + "-" + day; }
+  function depDayDiff(a, b) { var da = new Date(a + "T00:00:00"), db = new Date(b + "T00:00:00"); return Math.round((db - da) / 86400000); }
+  function depParseYears(term) {
+    if (!term) return 0; var t = ("" + term).trim(), m;
+    if ((m = t.match(/(\d+(?:\.\d+)?)\s*年/))) return parseFloat(m[1]);
+    if ((m = t.match(/(\d+(?:\.\d+)?)\s*个月/)) || (m = t.match(/(\d+(?:\.\d+)?)\s*月/))) return parseFloat(m[1]) / 12;
+    if ((m = t.match(/(\d+(?:\.\d+)?)\s*天/))) return parseFloat(m[1]) / 365;
+    return 0;
+  }
+  function depCalcInterest(amount, rate, term) { var amt = parseFloat(amount) || 0, r = parseFloat(rate) || 0, y = depParseYears(term); return Math.round(amt * r / 100 * y * 100) / 100; }
+  /* 中文数字 ↔ 阿拉伯数字（金额输入可写「十万」「30万」等） */
+  function cnNumMap() { return { "零": 0, "〇": 0, "一": 1, "壹": 1, "二": 2, "贰": 2, "两": 2, "三": 3, "叁": 3, "四": 4, "肆": 4, "五": 5, "伍": 5, "六": 6, "陆": 6, "七": 7, "柒": 7, "八": 8, "捌": 8, "九": 9, "玖": 9 }; }
+  function cnUnitMap() { return { "十": 10, "拾": 10, "百": 100, "佰": 100, "千": 1000, "仟": 1000, "万": 10000, "萬": 10000, "亿": 100000000, "億": 100000000 }; }
+  function cn2num(s) {
+    if (s == null) return null;
+    s = String(s).trim();
+    if (!s) return null;
+    if (/^[\d.]+$/.test(s)) return parseFloat(s);
+    var m = s.match(/^([\d.]+)\s*([万亿])$/); if (m) { var bm = { "万": 10000, "亿": 100000000 }; return Math.round(parseFloat(m[1]) * bm[m[2]]); }
+    var cm = cnNumMap(), cu = cnUnitMap(), total = 0, section = 0, num = 0, has = false;
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (ch in cm) { num = cm[ch]; has = true; }
+      else if (ch in cu) {
+        var u = cu[ch];
+        if (u < 10000) { if (num === 0) num = 1; section += num * u; num = 0; has = true; }
+        else { if (num !== 0) section += num; total += section * u; section = 0; num = 0; has = true; }
+      }
+    }
+    if (!has) return null;
+    return total + section + num;
+  }
+  function num2cn(n) {
+    if (n == null || isNaN(n)) return "";
+    n = Math.round(Number(n));
+    if (n === 0) return "零";
+    var neg = n < 0; n = Math.abs(n);
+    var d = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+    function four(x) {
+      var s = "", u = ["", "十", "百", "千"], str = "" + x, len = str.length, zero = false;
+      for (var i = 0; i < len; i++) {
+        var digit = +str[i], pos = len - 1 - i;
+        if (digit === 0) { zero = true; }
+        else { if (zero) { s += "零"; zero = false; } s += d[digit] + u[pos]; }
+      }
+      return s;
+    }
+    var out = "";
+    if (n >= 100000000) {
+      out += four(Math.floor(n / 100000000)) + "亿";
+      var r1 = n % 100000000;
+      if (r1 > 0) { out += (r1 < 10000000 ? "零" : "") + four(r1); }
+    } else if (n >= 10000) {
+      out += four(Math.floor(n / 10000)) + "万";
+      var r2 = n % 10000;
+      if (r2 > 0) { out += (r2 < 1000 ? "零" : "") + four(r2); }
+    } else out = four(n);
+    if (out.indexOf("一十") === 0) out = out.replace("一十", "十");
+    return (neg ? "负" : "") + out;
+  }
+  function depTermMonths(term) {
+    var m = { "3个月": 3, "6个月": 6, "1年": 12, "2年": 24, "3年": 36 };
+    if (m.hasOwnProperty(term)) return m[term];
+    var y = depParseYears(term); if (y > 0) return Math.round(y * 12);
+    return null;
+  }
+  function depCalcMature(depositDate, term) {
+    var mo = depTermMonths(term);
+    if (!mo || !depositDate) return "";
+    var mm = ("" + depositDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!mm) return "";
+    var y = +mm[1], m = +mm[2] - 1, day = +mm[3];
+    var total = m + mo;
+    var ny = y + Math.floor(total / 12), nm = ((total % 12) + 12) % 12;
+    var last = new Date(ny, nm + 1, 0).getDate();
+    var nd = Math.min(day, last);
+    return ny + "-" + ("0" + (nm + 1)).slice(-2) + "-" + ("0" + nd).slice(-2);
+  }
+  function depStatus(d) {
+    if (d.rolled) return { key: "rolled", label: "已转存 ✓", bar: "#3b82f6" };
+    var days = depDayDiff(depToday(), d.matureDate);
+    if (isNaN(days)) return { key: "normal", label: "", bar: "#4caf50", days: 9999 };
+    if (days < 0) return { key: "expired", label: "可前往银行办理转存", bar: "#8a8a8a", days: days };
+    if (days <= 15) return { key: "urgent", label: "请及时处理", bar: "#e5484d", days: days };
+    if (days <= 30) return { key: "near", label: "即将到期", bar: "#f5b50a", days: days };
+    return { key: "normal", label: "", bar: "#4caf50", days: days };
+  }
+  /* 50万存款保险警戒线：按「银行 + 所属人」分组累计（同一存款人在同一家银行限额50万） */
+  function depGroupTotals() {
+    var map = {};
+    depAll().forEach(function (d) {
+      var bank = d.bank || "未命名银行", owner = d.owner || "本人", k = bank + "|" + owner;
+      if (!map[k]) map[k] = { bank: bank, owner: owner, amt: 0, cnt: 0 };
+      map[k].amt += parseFloat(d.amount) || 0; map[k].cnt++;
+    });
+    return map;
+  }
+  function depLimitLevel(amt) {
+    if (amt >= DEP_LIMIT) return "over";        /* 已超存款保险限额 */
+    if (amt >= DEP_LIMIT * 0.8) return "warn";  /* 接近 50 万 */
+    return "ok";
+  }
+  function depGroupLevel(bank, owner) {
+    var map = depGroupTotals(), k = (bank || "未命名银行") + "|" + (owner || "本人");
+    var g = map[k]; if (!g) return "ok";
+    return depLimitLevel(g.amt);
+  }
+  function depFmtMoney(n) { return (n || 0).toLocaleString("zh-CN", { maximumFractionDigits: 0 }); }
+  function depAll() { return (depSession && depSession.data.deposits) || []; }
+  function depDueSoonCount() {
+    var n = 0;
+    depAll().forEach(function (d) {
+      if (d.rolled) return;
+      var s = depStatus(d);
+      if (s.days >= 0 && s.days <= 30) n++;
+    });
+    return n;
+  }
+  function depAddBank(name) {
+    if (!depSession.data.banks) depSession.data.banks = [];
+    var nm = (name || "").trim(); if (!nm) return;
+    for (var i = 0; i < depSession.data.banks.length; i++) if (depSession.data.banks[i].toLowerCase() === nm.toLowerCase()) return;
+    depSession.data.banks.push(nm);
+  }
+  function depRenderBankChips() {
+    var box = $("f-bank-chips"); if (!box) return;
+    var banks = (depSession.data.banks || []).slice();
+    if (!banks.length) { box.innerHTML = '<span class="dep-banks-empty">常用银行会在这里出现，方便下次点选</span>'; return; }
+    box.innerHTML = '<span class="dep-banks-tip">常用银行：</span>' + banks.map(function (b) {
+      return '<button type="button" class="dep-chip" data-bank="' + esc(b) + '">' + esc(b) + '</button>';
+    }).join("") + '<button type="button" class="dep-chip dep-chip-mg" id="f-bank-manage">＋ 管理</button>';
+    box.querySelectorAll(".dep-chip[data-bank]").forEach(function (c) {
+      c.onclick = function () { var el = $("f-bank"); if (el) { el.value = this.getAttribute("data-bank"); el.focus(); } };
+    });
+    var mg = $("f-bank-manage"); if (mg) mg.onclick = function () { depOpenBankManager(); };
+  }
+  function depOpenBankManager() {
+    var holder = document.createElement("div");
+    holder.innerHTML = '<div class="dep-mask" id="dep-bank-mask"><div class="dep-modal"><div class="dep-modal-h"><b>银行标签管理</b><button class="dep-modal-x" id="dep-bank-close" type="button">×</button></div>'
+      + '<div class="dep-modal-body"><div class="dep-bank-add"><input id="dep-bank-new" placeholder="输入银行名，如 盛京银行"><button class="dep-btn primary" id="dep-bank-addbtn" type="button">添加</button></div>'
+      + '<div class="dep-bank-list" id="dep-bank-list"></div>'
+      + '<p class="dep-modal-tip">删除标签不会删除已有存单，仅移除快捷入口。保存存单时输入的银行会自动加入这里。</p></div></div></div>';
+    document.body.appendChild(holder.firstChild);
+    var mask = $("dep-bank-mask");
+    function close() { if (mask) mask.remove(); }
+    function rerender() {
+      var list = $("dep-bank-list"); if (!list) return;
+      var arr = (depSession.data.banks || []);
+      list.innerHTML = arr.length ? arr.map(function (b) { return '<div class="dep-bank-row"><span>' + esc(b) + '</span><button class="dep-modal-x sm" data-bank="' + esc(b) + '" type="button">×</button></div>'; }).join("") : '<p class="dep-modal-tip">暂无标签，上方添加即可</p>';
+      list.querySelectorAll(".dep-modal-x[data-bank]").forEach(function (b) {
+        b.onclick = function () { var nm = this.getAttribute("data-bank"); depSession.data.banks = (depSession.data.banks || []).filter(function (x) { return x !== nm; }); depPersist(); rerender(); depRenderBankChips(); };
+      });
+    }
+    $("dep-bank-close").onclick = close;
+    mask.onclick = function (e) { if (e.target === mask) close(); };
+    $("dep-bank-addbtn").onclick = function () { var inp = $("dep-bank-new"); var v = inp.value.trim(); if (!v) return; depAddBank(v); inp.value = ""; depPersist(); rerender(); depRenderBankChips(); };
+    $("dep-bank-new").onkeydown = function (e) { if (e.key === "Enter") { $("dep-bank-addbtn").click(); } };
+    rerender();
+  }
+  function depFind(arr, id) { for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return i; return -1; }
+
+  /* ---------- 入口 ---------- */
+  function lifeDepositsHtml() { return '<div id="dep-root"><div id="dep-gate"></div><div id="dep-main" style="display:none;"></div></div>'; }
+  function depSupport() {
+    if (!window.indexedDB) return { ok: false, msg: "当前浏览器不支持本地存储（IndexedDB），无法使用银行存单功能。" };
+    if (!window.crypto || !window.crypto.subtle) return { ok: false, msg: "银行存单需要加密能力，请在 HTTPS 或 localhost 环境打开（如工作台 GitHub Pages / CloudStudio 预览）。" };
+    return { ok: true };
+  }
+  /* 首页卡片「即将到期」角标 */
+  function depUpdateHomeBadge() {
+    var el = $("dep-home-badge"); if (!el) return;
+    if (!depSession) { el.style.display = "none"; return; }
+    var n = depDueSoonCount();
+    if (n > 0) { el.style.display = ""; el.textContent = "📅 " + n + " 张即将到期"; el.className = "dep-home-badge show"; }
+    else { el.style.display = "none"; }
+  }
+  /* 闲置自动锁定：解锁后 5 分钟无操作则自动锁 */
+  function depStartIdle() {
+    depStopIdle();
+    if (!depSession) return;
+    depIdleActive = true;
+    depIdleReset();
+    ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach(function (ev) { document.addEventListener(ev, depIdleReset, { passive: true }); });
+  }
+  function depStopIdle() {
+    depIdleActive = false;
+    if (depIdleTimer) { clearTimeout(depIdleTimer); depIdleTimer = null; }
+    ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach(function (ev) { document.removeEventListener(ev, depIdleReset); });
+  }
+  function depIdleReset() {
+    if (!depIdleActive) return;
+    if (depIdleTimer) clearTimeout(depIdleTimer);
+    depIdleTimer = setTimeout(depDoIdleLock, 5 * 60 * 1000);
+  }
+  function depDoIdleLock() {
+    if (!depSession) { depStopIdle(); return; }
+    depForceLock();
+  }
+  function depForceLock() {
+    depStopIdle();
+    depSession = null;
+    depUpdateHomeBadge();
+    var root = $("dep-root");
+    if (root) depInit();
+  }
+  function depInit() {
+    var root = $("dep-root"); if (!root) return;
+    if (depSession) { depRenderMain(); return; }
+    var sp = depSupport();
+    if (!sp.ok) { root.innerHTML = '<div class="dep-msg">' + sp.msg + '</div>'; return; }
+    depUI = { view: "list", selId: null, filter: { status: "all", bank: "", year: "", term: "" }, q: "", sort: "mature-asc", formPhotos: [], removedPhotos: [] };
+    depLoadVault().then(function (rec) { depRenderGate(rec ? "unlock" : "setup"); }).catch(function () { depRenderGate("setup"); });
+  }
+  function depRenderGate(mode) {
+    var gate = $("dep-gate"), main = $("dep-main");
+    if (main) { main.style.display = "none"; main.innerHTML = ""; }
+    gate.style.display = "block";
+    if (mode === "setup") return depRenderSetup();
+    if (mode === "recover") return depRenderRecover();
+    return depRenderUnlock();
+  }
+
+  /* ---------- 密码门：设置 / 解锁 / 找回 ---------- */
+  function depRenderSetup() {
+    var g = $("dep-gate");
+    g.innerHTML = '<div class="dep-gate"><h4>银行存单 · 设置密码</h4>'
+      + '<p class="dep-tip">首次使用请设置访问密码（≥6位，建议字母+数字）。所有存单仅存本机并加密，不与电脑端同步。</p>'
+      + '<div class="dep-field"><label>密码</label><input type="password" id="dep-pw" placeholder="设置密码" autocomplete="new-password"></div>'
+      + '<div class="dep-field"><label>确认密码</label><input type="password" id="dep-pw2" placeholder="再次输入" autocomplete="new-password"></div>'
+      + '<div class="dep-sq-box"><div class="dep-sq-title">安全问题（可选，用于找回密码）</div>'
+      + DEP_SQ.map(function (q, i) { return '<div class="dep-field"><label>' + esc(q) + '</label><input id="dep-sq' + i + '" placeholder="答案"></div>'; }).join("") + '</div>'
+      + '<button class="dep-btn primary" id="dep-setup-go">创建并进入</button>'
+      + '<p class="dep-err" id="dep-gate-err"></p></div>';
+    $("dep-setup-go").onclick = function () {
+      var pw = $("dep-pw").value, pw2 = $("dep-pw2").value, err = $("dep-gate-err");
+      if (pw.length < 6) { err.textContent = "密码至少6位"; return; }
+      if (pw !== pw2) { err.textContent = "两次密码不一致"; return; }
+      var ans = [0, 1, 2].map(function (i) { return ($("dep-sq" + i).value || "").trim(); });
+      var haveAll = ans[0] && ans[1] && ans[2];
+      depSetup(pw, haveAll ? { questions: DEP_SQ.slice(), answers: ans } : null)
+        .then(function () { toast("已创建，进入银行存单"); depRenderMain(); })
+        .catch(function (e) { err.textContent = "创建失败：" + (e && e.message || e); });
+    };
+  }
+  function depRenderUnlock() {
+    var g = $("dep-gate");
+    depLoadLock().then(function (lock) {
+      lock = lock || { fails: 0, until: 0 };
+      if (lock.until && lock.until > Date.now()) {
+        var left = Math.ceil((lock.until - Date.now()) / 60000);
+        g.innerHTML = '<div class="dep-gate"><h4>银行存单</h4><p class="dep-err">因多次输错密码，已锁定 ' + left + ' 分钟，请稍后再试。</p></div>';
+        return;
+      }
+      g.innerHTML = '<div class="dep-gate"><h4>银行存单</h4><p class="dep-tip">请输入访问密码</p>'
+        + '<div class="dep-field"><input type="password" id="dep-pw" placeholder="访问密码" autocomplete="current-password"></div>'
+        + '<button class="dep-btn primary" id="dep-unlock-go">解锁</button>'
+        + '<button class="dep-link" id="dep-forgot">忘记密码？</button>'
+        + '<p class="dep-err" id="dep-gate-err"></p></div>';
+      $("dep-unlock-go").onclick = function () {
+        var pw = $("dep-pw").value, err = $("dep-gate-err");
+        if (!pw) { err.textContent = "请输入密码"; return; }
+        depUnlock(pw).then(function () { toast("已解锁"); depRenderMain(); }).catch(function (e) {
+          if (e && ("" + e.message).indexOf("locked:") === 0) { depRenderUnlock(); return; }
+          if (e && e.message === "wrong") { depLoadLock().then(function (l) { err.textContent = "密码错误（已错 " + (l.fails || 0) + "/5 次）"; }); return; }
+          err.textContent = "解锁失败：" + (e && e.message || e);
+        });
+      };
+      $("dep-forgot").onclick = function () { depRenderRecover(); };
+    });
+  }
+  function depRenderRecover() {
+    var g = $("dep-gate");
+    depLoadVault().then(function (rec) {
+      if (!rec || !rec.secQ) {
+        g.innerHTML = '<div class="dep-gate"><h4>找回密码</h4><p class="dep-err">未设置安全问题，无法找回。可在「设置」中清除所有数据后重设（将丢失全部存单）。</p><button class="dep-link" id="dep-back">返回</button></div>';
+        $("dep-back").onclick = function () { depRenderUnlock(); }; return;
+      }
+      var qs = rec.secQ.questions;
+      g.innerHTML = '<div class="dep-gate"><h4>找回密码</h4><p class="dep-tip">回答以下问题以重置密码</p>'
+        + qs.map(function (q, i) { return '<div class="dep-field"><label>' + esc(q) + '</label><input id="dep-ra' + i + '" placeholder="答案"></div>'; }).join("")
+        + '<div class="dep-field"><label>新密码</label><input type="password" id="dep-newpw" placeholder="≥6位"></div>'
+        + '<button class="dep-btn primary" id="dep-rec-go">验证并重置</button>'
+        + '<button class="dep-link" id="dep-back">返回</button>'
+        + '<p class="dep-err" id="dep-gate-err"></p></div>';
+      $("dep-rec-go").onclick = function () {
+        var ans = [0, 1, 2].map(function (i) { return ($("dep-ra" + i).value || "").trim(); });
+        var npw = $("dep-newpw").value, err = $("dep-gate-err");
+        if (npw.length < 6) { err.textContent = "新密码至少6位"; return; }
+        depVerifySecQ(ans).then(function (ok) {
+          if (!ok) { err.textContent = "安全问题答案不正确"; return; }
+          var ansStr = DEP_SQ.map(function (q, i) { return q + "||" + ans[i].trim().toLowerCase(); }).join("###");
+          return depRecover(npw, ansStr).then(function () { toast("密码已重置"); depRenderMain(); });
+        }).catch(function (e) { err.textContent = "重置失败：" + (e && e.message || e); });
+      };
+      $("dep-back").onclick = function () { depRenderUnlock(); };
+    });
+  }
+
+  /* ---------- 主界面 ---------- */
+  function depRenderMain() {
+    var gate = $("dep-gate"), main = $("dep-main");
+    gate.style.display = "none"; main.style.display = "block";
+    depUI.view = "list"; depUI.selId = null;
+    depRenderList();
+    depUpdateHomeBadge();
+    depStartIdle();
+  }
+  function depRenderList() {
+    var main = $("dep-main");
+    main.innerHTML = depBannerHtml() + depStatsHtml() + '<div class="dep-ocr-bar"><button class="dep-btn" id="dep-ocr">📋 从文字识别填单</button><span class="dep-ocr-tip">把百度网盘识别出的文字粘进来，自动帮你填，可改</span></div>' + depFiltersHtml() + '<div id="dep-list"></div>' + depFabHtml();
+    depBindList();
+    depRenderListInner();
+    depUpdateHomeBadge();
+  }
+  function depBindList() {
+    var q = $("dep-q"); if (q) q.oninput = function () { depUI.q = this.value; depRenderListInner(); };
+    ["status", "bank", "year", "term", "owner"].forEach(function (k) {
+      var el = $("dep-f-" + k); if (el) el.onchange = function () { depUI.filter[k] = this.value; depRenderListInner(); };
+    });
+    var sortEl = $("dep-f-sort"); if (sortEl) sortEl.onchange = function () { depUI.sort = this.value; depRenderListInner(); };
+    var fab = $("dep-fab"); if (fab) fab.onclick = function () { depRenderForm(null); };
+    var ocr = $("dep-ocr"); if (ocr) ocr.onclick = function () { depOpenOCR(); };
+  }
+  function depRenderListInner() {
+    var box = $("dep-list"); if (box) box.innerHTML = depListInnerHtml(depVisible());
+    var main = $("dep-main");
+    if (main) main.querySelectorAll(".dep-card").forEach(function (c) { c.onclick = function () { depRenderDetail(this.getAttribute("data-id")); }; });
+  }
+  function depVisible() {
+    var list = depAll().slice(), f = depUI.filter, q = (depUI.q || "").trim().toLowerCase();
+    if (f.status && f.status !== "all") list = list.filter(function (d) { return depStatus(d).key === f.status; });
+    if (f.bank) list = list.filter(function (d) { return d.bank === f.bank; });
+    if (f.year) list = list.filter(function (d) { return (d.matureDate || "").slice(0, 4) === f.year; });
+    if (f.term && f.term !== "all") list = list.filter(function (d) { return (d.term || "") === f.term; });
+    if (f.owner) list = list.filter(function (d) { return (d.owner || "本人") === f.owner; });
+    if (q) list = list.filter(function (d) { return (d.bank + " " + (d.owner || "本人") + " " + (d.note || "") + " " + (d.amount || "")).toLowerCase().indexOf(q) >= 0; });
+    var sort = depUI.sort || "mature-asc";
+    list.sort(function (a, b) {
+      if (sort === "mature-asc") return depDayDiff(a.matureDate, b.matureDate);
+      if (sort === "amount-desc") return (parseFloat(b.amount) || 0) - (parseFloat(a.amount) || 0);
+      if (sort === "deposit-desc") return a.depositDate < b.depositDate ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }
+  function depListInnerHtml(list) {
+    if (!list.length) return '<p class="dep-empty">暂无存单。点右下角 + 新增一张。</p>';
+    return list.map(function (d) {
+      var st = depStatus(d);
+      var amt = (parseFloat(d.amount) || 0).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+      var lvl = depGroupLevel(d.bank, d.owner);
+      var warnTag = lvl === "over" ? '<span class="dep-warn-tag over">⚠ 超50万</span>'
+        : lvl === "warn" ? '<span class="dep-warn-tag warn">近50万</span>' : '';
+      return '<div class="dep-card" data-id="' + d.id + '" style="--bar:' + st.bar + '">'
+        + '<div class="dep-card-bar"></div><div class="dep-card-body">'
+        + '<div class="dep-card-top"><span class="dep-bank">' + esc(d.bank || "未命名银行") + '</span>'
+        + (warnTag ? warnTag + ' ' : '') + (st.label ? '<span class="dep-tag" style="background:' + st.bar + '">' + esc(st.label) + '</span>' : '') + '</div>'
+        + '<div class="dep-card-amt">¥' + amt + '</div>'
+        + '<div class="dep-card-meta">所属 ' + esc(d.owner || "本人") + ' · 存期 ' + esc(d.term || "-") + ' · 到期 ' + esc(d.matureDate || "-") + '</div>'
+        + '</div></div>';
+    }).join("");
+  }
+  function depFabHtml() { return '<button class="dep-fab" id="dep-fab">+</button>'; }
+
+  /* ---------- 横幅 / 统计 / 筛选 ---------- */
+  function depBannerHtml() {
+    var list = depAll(), near = 0, urgent = 0, expired = 0;
+    list.forEach(function (d) { var s = depStatus(d).key; if (s === "near") near++; else if (s === "urgent") urgent++; else if (s === "expired") expired++; });
+    var groups = depGroupTotals(), overGroups = 0, warnGroups = 0;
+    Object.keys(groups).forEach(function (k) { var lv = depLimitLevel(groups[k].amt); if (lv === "over") overGroups++; else if (lv === "warn") warnGroups++; });
+    var msgs = [];
+    if (urgent) msgs.push('<span class="dep-banner-pill urgent">🔴 ' + urgent + ' 张紧急待处理</span>');
+    if (near) msgs.push('<span class="dep-banner-pill near">🟡 ' + near + ' 张即将到期</span>');
+    if (expired) msgs.push('<span class="dep-banner-pill expired">⚫ ' + expired + ' 张已过期待转存</span>');
+    if (overGroups) msgs.push('<span class="dep-banner-pill over">⚠ ' + overGroups + ' 组超50万存款保险限额</span>');
+    else if (warnGroups) msgs.push('<span class="dep-banner-pill warn">⚠ ' + warnGroups + ' 组接近50万限额</span>');
+    if (!msgs.length) return '<div class="dep-banner ok">🟢 暂无即将到期的存单，保持得不错～</div>';
+    return '<div class="dep-banner">' + msgs.join("") + '</div>';
+  }
+  function depStatsHtml() {
+    var list = depAll(), amt = 0, intSum = 0, expired = 0, near30 = 0, bankMap = {};
+    list.forEach(function (d) {
+      var a = parseFloat(d.amount) || 0; amt += a;
+      var est = d.interest != null ? parseFloat(d.interest) : depCalcInterest(d.amount, d.rate, d.term);
+      intSum += (isNaN(est) ? 0 : est);
+      var s = depStatus(d).key; if (s === "expired") expired++; if (s === "near" || s === "urgent") near30++;
+      if (!bankMap[d.bank]) bankMap[d.bank] = { amt: 0, cnt: 0 }; bankMap[d.bank].amt += a; bankMap[d.bank].cnt++;
+    });
+    /* 统计超 50 万限额的「银行+所属人」组数 */
+    var groups = depGroupTotals(), overGroups = 0, groupOfBank = {};
+    Object.keys(groups).forEach(function (k) {
+      var g = groups[k], lv = depLimitLevel(g.amt);
+      if (lv === "over") { overGroups++; groupOfBank[g.bank] = "over"; }
+      else if (lv === "warn" && groupOfBank[g.bank] !== "over") groupOfBank[g.bank] = "warn";
+    });
+    var banks = Object.keys(bankMap), maxAmt = banks.length ? Math.max.apply(null, banks.map(function (b) { return bankMap[b].amt; })) : 1;
+    var distHtml = banks.length ? banks.map(function (b) {
+      var pct = maxAmt ? Math.round(bankMap[b].amt / maxAmt * 100) : 0;
+      var flag = groupOfBank[b] === "over" ? ' style="background:linear-gradient(90deg,#f08a8a,#e5484d);"' : (groupOfBank[b] === "warn" ? ' style="background:linear-gradient(90deg,#f6d585,#f5b50a);"' : '');
+      var mark = groupOfBank[b] ? ' <span style="color:#e5484d;font-size:11px;">⚠</span>' : '';
+      return '<div class="dep-dist-row"><span class="dep-dist-name">' + esc(b) + mark + '</span><div class="dep-dist-bar"><div' + flag + ' style="width:' + pct + '%;"></div></div><span class="dep-dist-amt">¥' + bankMap[b].amt.toLocaleString("zh-CN", { maximumFractionDigits: 0 }) + '</span></div>';
+    }).join("") : '<p class="dep-tip">暂无数据</p>';
+    var valid = list.filter(function (d) { return !d.rolled; }).length;
+    return '<div class="dep-stats">'
+      + '<div class="dep-kpi"><div class="dep-kpi-n">' + valid + '</div><div class="dep-kpi-l">有效存单</div></div>'
+      + '<div class="dep-kpi"><div class="dep-kpi-n">¥' + amt.toLocaleString("zh-CN", { maximumFractionDigits: 0 }) + '</div><div class="dep-kpi-l">总本金</div></div>'
+      + '<div class="dep-kpi"><div class="dep-kpi-n">¥' + intSum.toLocaleString("zh-CN", { maximumFractionDigits: 0 }) + '</div><div class="dep-kpi-l">预期利息</div></div>'
+      + '<div class="dep-kpi"><div class="dep-kpi-n" style="color:#e5484d">' + expired + '</div><div class="dep-kpi-l">已过期待转存</div></div>'
+      + '<div class="dep-kpi"><div class="dep-kpi-n" style="color:#f5b50a">' + near30 + '</div><div class="dep-kpi-l">30天内到期</div></div>'
+      + '<div class="dep-kpi"><div class="dep-kpi-n' + (overGroups ? ' over' : '') + '">' + overGroups + '</div><div class="dep-kpi-l">超50万组</div></div>'
+      + '</div><div class="dep-dist"><div class="dep-dist-title">各银行存款分布' + (overGroups ? '（<span style="color:#e5484d;">红条=超50万</span>）' : '') + '</div>' + distHtml + '</div>';
+  }
+  function depFiltersHtml() {
+    var list = depAll();
+    var banks = (depSession.data.banks || []).slice(), seen = {};
+    banks.forEach(function (b) { seen[b.toLowerCase()] = 1; });
+    list.forEach(function (d) { if (d.bank && !seen[d.bank.toLowerCase()]) { seen[d.bank.toLowerCase()] = 1; banks.push(d.bank); } });
+    var years = [], seenY = {}; list.forEach(function (d) { var y = (d.matureDate || "").slice(0, 4); if (y && !seenY[y]) { seenY[y] = 1; years.push(y); } }); years.sort();
+    var owners = [], seenO = {}; list.forEach(function (d) { var o = d.owner || "本人"; if (!seenO[o]) { seenO[o] = 1; owners.push(o); } });
+    var f = depUI.filter;
+    return '<div class="dep-filters">'
+      + '<input class="dep-search" id="dep-q" placeholder="搜索银行/备注/金额" value="' + esc(depUI.q || "") + '">'
+      + '<div class="dep-filter-row">'
+      + '<select id="dep-f-status"><option value="all">全部状态</option>'
+      + '<option value="normal"' + (f.status === "normal" ? " selected" : "") + '>正常</option>'
+      + '<option value="near"' + (f.status === "near" ? " selected" : "") + '>30天内到期</option>'
+      + '<option value="urgent"' + (f.status === "urgent" ? " selected" : "") + '>紧急</option>'
+      + '<option value="expired"' + (f.status === "expired" ? " selected" : "") + '>已过期</option>'
+      + '<option value="rolled"' + (f.status === "rolled" ? " selected" : "") + '>已转存</option></select>'
+      + '<select id="dep-f-bank"><option value="">全部银行</option>' + banks.map(function (b) { return '<option value="' + esc(b) + '"' + (f.bank === b ? " selected" : "") + '>' + esc(b) + '</option>'; }).join("") + '</select>'
+      + '</div><div class="dep-filter-row">'
+      + '<select id="dep-f-year"><option value="">全部年份</option>' + years.map(function (y) { return '<option value="' + y + '"' + (f.year === y ? " selected" : "") + '>' + y + '年到期</option>'; }).join("") + '</select>'
+      + '<select id="dep-f-term"><option value="all">全部存期</option>' + DEP_TERMS.map(function (t) { return '<option value="' + t + '"' + (f.term === t ? " selected" : "") + '>' + t + '</option>'; }).join("") + '</select>'
+      + '<select id="dep-f-sort"><option value="mature-asc">到期日↑</option><option value="amount-desc">金额↓</option><option value="deposit-desc">存入日↓</option></select>'
+      + '</div><div class="dep-filter-row">'
+      + '<select id="dep-f-owner"><option value="">全部所属人</option>' + owners.map(function (o) { return '<option value="' + esc(o) + '"' + (f.owner === o ? " selected" : "") + '>' + esc(o) + '</option>'; }).join("") + '</select>'
+      + '<span class="dep-limit-hint">单银行·单人 50万存款保险限额</span>'
+      + '</div></div>';
+  }
+
+  /* ---------- 详情 ---------- */
+  function depRenderDetail(id) {
+    var d = null, arr = depAll(); for (var i = 0; i < arr.length; i++) if (arr[i].id === id) d = arr[i];
+    if (!d) { depRenderList(); return; }
+    var st = depStatus(d), main = $("dep-main");
+    var lvl = depGroupLevel(d.bank, d.owner);
+    var g = depGroupTotals()[(d.bank || "未命名银行") + "|" + (d.owner || "本人")];
+    var gAmt = g ? g.amt : 0;
+    var overBox = lvl === "over"
+      ? '<div class="dep-over-box over">⚠ 该「' + esc(d.bank || "未命名银行") + ' · ' + esc(d.owner || "本人") + '」合计 ¥' + depFmtMoney(gAmt) + '，已超出存款保险 50 万限额，超额部分不保本，建议分散到其他银行/人。</div>'
+      : lvl === "warn"
+      ? '<div class="dep-over-box warn">该「' + esc(d.bank || "未命名银行") + ' · ' + esc(d.owner || "本人") + '」合计 ¥' + depFmtMoney(gAmt) + '，已接近 50 万存款保险限额。</div>'
+      : '';
+    main.innerHTML = '<div class="dep-detail"><button class="dep-back" id="dep-back2">‹ 返回</button>'
+      + '<div class="dep-d-bar" style="background:' + st.bar + '"></div>'
+      + '<h3>' + esc(d.bank || "未命名银行") + '</h3>'
+      + (st.label ? '<div class="dep-d-status" style="color:' + st.bar + '">' + esc(st.label) + '</div>' : '')
+      + '<div class="dep-d-owner">所属人：' + esc(d.owner || "本人") + '</div>'
+      + overBox
+      + '<div class="dep-d-amt">¥' + (parseFloat(d.amount) || 0).toLocaleString("zh-CN", { maximumFractionDigits: 2 }) + '</div>'
+      + '<div class="dep-d-grid">'
+      + '<div><span>存入日</span>' + esc(d.depositDate || "-") + '</div>'
+      + '<div><span>到期日</span>' + esc(d.matureDate || "-") + '</div>'
+      + '<div><span>存期</span>' + esc(d.term || "-") + '</div>'
+      + '<div><span>利率</span>' + (d.rate ? d.rate + "%" : "-") + '</div>'
+      + '<div><span>利息</span>' + (d.interest ? ("¥" + d.interest) : "-") + '</div>'
+      + '<div><span>状态</span>' + (d.rolled ? "已转存" : "未转存") + '</div></div>'
+      + (d.note ? '<div class="dep-d-note"><b>备注：</b>' + esc(d.note) + '</div>' : '')
+      + (d.log && d.log.length ? '<div class="dep-d-log"><b>修改日志</b>' + d.log.map(function (l) { return '<div class="dep-log-row">' + esc(new Date(l.t).toLocaleString("zh-CN")) + ' ' + esc(l.msg) + '</div>'; }).join("") + '</div>' : '')
+      + '<div class="dep-d-actions">'
+      + '<button class="dep-btn" id="dep-edit">编辑</button>'
+      + (d.rolled ? '<button class="dep-btn" id="dep-unroll">取消转存</button>' : '<button class="dep-btn warn" id="dep-roll">标记转存</button>')
+      + '<button class="dep-btn danger" id="dep-del">删除</button></div>'
+      + '<button class="dep-link" id="dep-settings-link">设置 / 备份</button></div>';
+    $("dep-back2").onclick = function () { depRenderList(); };
+    $("dep-edit").onclick = function () { depRenderForm(id); };
+    $("dep-settings-link").onclick = function () { depRenderSettings(); };
+    var roll = $("dep-roll"); if (roll) roll.onclick = function () { d.rolled = true; d.rolledDate = depToday(); d.log.push({ t: Date.now(), msg: "标记转存" }); depPersist().then(function () { depRenderDetail(id); }); };
+    var unroll = $("dep-unroll"); if (unroll) unroll.onclick = function () { d.rolled = false; d.rolledDate = null; d.log.push({ t: Date.now(), msg: "取消转存" }); depPersist().then(function () { depRenderDetail(id); }); };
+    $("dep-del").onclick = function () { confirmDelete("删除存单", "删除后不可恢复：" + (d.bank || "") + " " + (d.amount || ""), function () {
+      depSession.data.deposits = depAll().filter(function (x) { return x.id !== id; });
+      depPersist().then(function () { depRenderList(); toast("已删除"); });
+    }); };
+  }
+
+  /* ---------- 表单（新增/编辑） ---------- */
+  function depRenderForm(id) {
+    var editing = !!id, d = null, prefill = depPrefill || null;
+    if (editing) { var arr = depAll(); for (var i = 0; i < arr.length; i++) if (arr[i].id === id) d = arr[i]; }
+    var curDeposit = d ? (d.depositDate || "") : (prefill && prefill.depositDate ? prefill.depositDate : "");
+    var curMature = d ? (d.matureDate || "") : (prefill && prefill.matureDate ? prefill.matureDate : "");
+    var main = $("dep-main");
+    main.innerHTML = '<div class="dep-form"><button class="dep-back" id="dep-back3">‹ 返回</button>'
+      + '<h3>' + (editing ? "编辑存单" : "新增存单") + '</h3>'
+      + '<div class="dep-field"><label>银行名称 *</label><input id="f-bank" value="' + (d ? esc(d.bank) : (prefill ? esc(prefill.bank) : "")) + '" placeholder="如：中国银行"><div class="dep-banks" id="f-bank-chips"></div></div>'
+      + '<div class="dep-field"><label>存单所属人</label><input id="f-owner" value="' + (d ? esc(d.owner || "本人") : (prefill ? esc(prefill.owner || "本人") : "本人")) + '" placeholder="本人"></div>'
+      + '<div class="dep-field"><label>存入日 *</label><div class="dep-date-row"><span id="f-deposit-disp" class="date-disp">' + (curDeposit || "未选择") + '</span><button type="button" class="mini-btn" id="f-deposit-pick">选择</button></div></div>'
+      + '<div class="dep-field"><label>到期日 *</label><div class="dep-date-row"><span id="f-mature-disp" class="date-disp">' + (curMature || "未选择") + '</span><button type="button" class="mini-btn" id="f-mature-pick">选择</button></div><div class="dep-hint" id="f-mature-auto"></div></div>'
+      + '<div class="dep-field"><label>存期 *</label><select id="f-term">' + DEP_TERMS.map(function (t) { return '<option value="' + t + '"' + ((d && d.term === t) || (prefill && prefill.term === t) ? " selected" : "") + '>' + t + '</option>'; }).join("") + '</select></div>'
+      + '<div class="dep-field"><label>存入金额(元) *</label><input type="text" id="f-amount" value="' + (d ? (d.amount || "") : (prefill && prefill.amount != null ? prefill.amount : "")) + '" placeholder="可输入数字或中文，如 十万 / 30万"></div>'
+      + '<div class="dep-amt-cn" id="f-amount-cn"></div>'
+      + '<div class="dep-field"><label>年利率(%)</label><input type="number" step="0.01" id="f-rate" value="' + (d ? (d.rate || "") : (prefill && prefill.rate != null ? prefill.rate : "")) + '" placeholder="选填"></div>'
+      + '<div class="dep-field"><label>利息(元)</label><input type="number" step="0.01" id="f-interest" value="' + (d ? (d.interest || "") : "") + '" placeholder="选填"></div>'
+      + '<div class="dep-int-est" id="f-int-est"></div>'
+      + '<div class="dep-field"><label>备注</label><textarea id="f-note" placeholder="选填">' + (d ? esc(d.note || "") : "") + '</textarea></div>'
+      + '<div class="dep-form-actions"><button class="dep-btn primary" id="f-save">保存</button><button class="dep-btn" id="f-cancel">取消</button></div>'
+      + '<p class="dep-err" id="f-err"></p></div>';
+    $("dep-back3").onclick = function () { depRenderList(); };
+    $("f-cancel").onclick = function () { depRenderList(); };
+    function updDepositDisp() { var el = $("f-deposit-disp"); if (el) el.textContent = curDeposit || "未选择"; }
+    function updMatureDisp() { var el = $("f-mature-disp"); if (el) el.textContent = curMature || "未选择"; }
+    function updMatureAuto() {
+      var hint = $("f-mature-auto"); if (!hint) return;
+      var term = $("f-term").value;
+      if (term && term !== "其他" && curDeposit) {
+        var calc = depCalcMature(curDeposit, term);
+        if (calc) {
+          if (calc !== curMature) { curMature = calc; updMatureDisp(); }
+          hint.textContent = "（已按「存入日 + " + term + "」自动算出到期日，可手动改）";
+          hint.classList.add("show");
+          return;
+        }
+      }
+      hint.textContent = ""; hint.classList.remove("show");
+    }
+    function updAmtCn() {
+      var v = $("f-amount").value, hint = $("f-amount-cn");
+      if (!hint) return;
+      var n = cn2num(v);
+      if (n != null && !isNaN(n) && n > 0) { hint.textContent = "＝ " + num2cn(n) + "（" + Number(n).toLocaleString("zh-CN") + " 元）"; hint.classList.add("show"); }
+      else { hint.textContent = ""; hint.classList.remove("show"); }
+    }
+    function updEst() {
+      var e = $("f-int-est"), v = cn2num($("f-amount").value);
+      if (v && parseFloat($("f-rate").value)) {
+        var est = depCalcInterest(v, $("f-rate").value, $("f-term").value);
+        e.textContent = "预估利息 ≈ ¥" + est.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) + (("" + $("f-interest").value).trim() ? ("，录入：" + $("f-interest").value) : "");
+      } else e.textContent = "";
+    }
+    $("f-deposit-pick").onclick = function () { openDatePicker({ mode: "single", value: curDeposit || undefined, onConfirm: function (dd) { curDeposit = dd; updDepositDisp(); updMatureAuto(); } }); };
+    $("f-mature-pick").onclick = function () { openDatePicker({ mode: "single", value: curMature || undefined, onConfirm: function (dd) { curMature = dd; updMatureDisp(); } }); };
+    $("f-term").onchange = function () { updMatureAuto(); updEst(); };
+    ["f-amount", "f-rate", "f-term", "f-interest"].forEach(function (id2) {
+      var el = $(id2); if (!el) return;
+      el.oninput = function () { if (id2 === "f-amount") updAmtCn(); updEst(); };
+      el.onchange = function () { if (id2 === "f-amount") updAmtCn(); updEst(); };
+    });
+    updAmtCn(); updEst(); updMatureAuto(); depRenderBankChips(); depPrefill = null;
+    $("f-save").onclick = function () {
+      var err = $("f-err");
+      var bank = $("f-bank").value.trim(), term = $("f-term").value;
+      var amountRaw = $("f-amount").value, rate = $("f-rate").value, interest = $("f-interest").value, note = $("f-note").value.trim();
+      var owner = ($("f-owner").value || "").trim() || "本人";
+      var amount = cn2num(amountRaw);
+      if (!bank) { err.textContent = "请填写银行名称"; return; }
+      depAddBank(bank);
+      if (!curDeposit) { err.textContent = "请选择存入日"; return; }
+      if (!curMature) { err.textContent = "请选择到期日（或先选存入日与存期自动计算）"; return; }
+      if (amount == null || isNaN(amount) || amount <= 0) { err.textContent = "请填写有效金额（可输入数字或中文，如 十万）"; return; }
+      var est = depCalcInterest(amount, rate, term);
+      if (("" + interest).trim() && rate) {
+        var diff = Math.abs(parseFloat(interest) - est);
+        if (diff > 0.01 && diff > Math.abs(est) * 0.01 + 0.01) toast("⚠️ 录入利息与预估不符，已仍保存");
+      }
+      var obj = d ? d : { id: "dep-" + uid(), createdAt: Date.now(), rolled: false, rolledDate: null, log: [] };
+      obj.bank = bank; obj.depositDate = curDeposit; obj.matureDate = curMature; obj.term = term;
+      obj.owner = owner;
+      obj.amount = Math.round(amount * 100) / 100; obj.rate = rate ? parseFloat(rate) : null; obj.interest = ("" + interest).trim() ? parseFloat(interest) : null; obj.note = note;
+      if (!d) obj.log = [{ t: Date.now(), msg: "创建存单" }]; else obj.log.push({ t: Date.now(), msg: "编辑" });
+      var arr = depAll(), idx = -1; for (var i = 0; i < arr.length; i++) if (arr[i].id === obj.id) idx = i;
+      if (idx >= 0) arr[idx] = obj; else arr.push(obj);
+      depPersist().then(function () { toast("已保存"); depRenderList(); }).catch(function (e) { err.textContent = "保存失败：" + (e && e.message || e); });
+    };
+  }
+  /* ---------- 设置 / 备份 ---------- */
+  function depRenderSettings() {
+    var main = $("dep-main"), rec = depSession.rec, hasSecQ = !!(rec && rec.secQ);
+    main.innerHTML = '<div class="dep-settings"><button class="dep-back" id="dep-back4">‹ 返回</button><h3>银行存单设置</h3>'
+      + '<div class="dep-set-block"><h4>修改密码</h4>'
+      + '<div class="dep-field"><label>旧密码</label><input type="password" id="s-old"></div>'
+      + '<div class="dep-field"><label>新密码</label><input type="password" id="s-new"></div>'
+      + '<button class="dep-btn" id="s-pw">保存新密码</button></div>'
+      + '<div class="dep-set-block"><h4>安全问题' + (hasSecQ ? '（已设置）' : '（未设置）') + '</h4>'
+      + (hasSecQ ? '<p class="dep-tip">已设置，可用于找回密码。</p>' : '<p class="dep-tip">设置后可通过回答问题找回密码。</p>')
+      + DEP_SQ.map(function (q, i) { return '<div class="dep-field"><label>' + esc(q) + '</label><input id="s-sq' + i + '" placeholder="答案"></div>'; }).join("")
+      + '<button class="dep-btn" id="s-sq-go">' + (hasSecQ ? '更新安全问题' : '设置安全问题') + '</button></div>'
+      + '<div class="dep-set-block"><h4>数据备份</h4><p class="dep-tip">导出加密备份文件(.bak)可存云盘；换机时导入恢复（需原密码解锁）。</p>'
+      + '<button class="dep-btn" id="s-export">导出备份</button><button class="dep-btn" id="s-import">导入备份</button>'
+      + '<input type="file" id="s-import-file" accept=".json,.bak" style="display:none;"></div>'
+      + '<div class="dep-set-block danger-block"><h4>清除所有数据</h4><p class="dep-tip">将删除本机全部存单及密码，不可恢复。</p>'
+      + '<button class="dep-btn danger" id="s-clear">清除所有数据</button></div>'
+      + '<p class="dep-err" id="s-err"></p></div>';
+    $("dep-back4").onclick = function () { depRenderList(); };
+    $("s-pw").onclick = function () {
+      var oldP = $("s-old").value, newP = $("s-new").value, err = $("s-err");
+      if (newP.length < 6) { err.textContent = "新密码至少6位"; return; }
+      depChangePw(oldP, newP).then(function () { toast("密码已更新"); $("s-old").value = ""; $("s-new").value = ""; }).catch(function (e) { err.textContent = (e && e.message === "old-wrong") ? "旧密码错误" : "更新失败：" + (e && e.message || e); });
+    };
+    $("s-sq-go").onclick = function () {
+      var ans = [0, 1, 2].map(function (i) { return ($("s-sq" + i).value || "").trim(); }), err = $("s-err");
+      if (!(ans[0] && ans[1] && ans[2])) { err.textContent = "请填完3个答案"; return; }
+      depSetSecQ(ans).then(function () { toast("安全问题已设置"); }).catch(function (e) { err.textContent = "设置失败：" + (e && e.message || e); });
+    };
+    $("s-export").onclick = function () { depExport(); };
+    $("s-import").onclick = function () { $("s-import-file").click(); };
+    $("s-import-file").onchange = function () { var f = this.files && this.files[0]; if (!f) return; depImport(f).catch(function (e) { $("s-err").textContent = "导入失败：" + (e && e.message || e); }); };
+    $("s-clear").onclick = function () {
+      confirmDelete("清除所有存单数据？", "此操作将删除本机全部存单、密码与备份，且不可恢复。", function () {
+        confirmDelete("再次确认", "真的要清除吗？", function () {
+          depIDBOpen().then(function (db) { return new Promise(function (res, rej) {
+            var tx = db.transaction(["kv", "photos"], "readwrite"); tx.objectStore("kv").clear(); tx.objectStore("photos").clear();
+            tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); };
+          }); }).then(function () { depSession = null; toast("已清除"); depRenderGate("setup"); });
+        });
+      });
+    };
+  }
+  function depExport() {
+    depLoadVault().then(function (rec) {
+      if (!rec) return;
+      return depIDBGetAllPhotos().then(function (photos) {
+        var bak = { version: 1, exportedAt: Date.now(), vault: rec, photos: photos };
+        var blob = new Blob([JSON.stringify(bak)], { type: "application/json" });
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "存单备份_" + depToday() + ".bak.json";
+        document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        toast("已导出加密备份");
+      });
+    });
+  }
+  function depImport(file) {
+    return file.text().then(function (txt) {
+      var bak = JSON.parse(txt), chain = Promise.resolve();
+      if (bak.vault) chain = chain.then(function () { return depSaveVault(bak.vault); });
+      if (bak.photos && bak.photos.length) chain = chain.then(function () { return Promise.all(bak.photos.map(function (p) { return depIDBPut("photos", p.id || p.key, { id: p.id || p.key, data: p.data, mime: p.mime }); })); });
+      return chain.then(function () { toast("已恢复备份，请用原密码解锁"); depSession = null; depRenderGate("unlock"); });
+    });
+  }
 })();
