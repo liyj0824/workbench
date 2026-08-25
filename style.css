@@ -3577,6 +3577,8 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
 .period-predict b { display: block; font-size: calc(0.867 * var(--font-size-base)); margin-bottom: 6px; opacity: .85; font-weight: 600; }
 .period-predict .big { font-size: 24px; font-weight: 700; line-height: 1.25; }
 .period-predict .hint { color: rgba(90,63,63,.72); }
+.period-over { background: rgba(200,90,90,.12); color: #a23b3b; border-radius: 12px; padding: 8px 10px; margin-top: 10px; font-size: calc(0.800 * var(--font-size-base)); line-height: 1.5; }
+.ps-summary { background: rgba(255,255,255,.5); border-radius: 12px; padding: 9px 11px; margin-bottom: 8px; font-size: calc(0.800 * var(--font-size-base)); color: rgba(90,63,63,.85); }
 
 /* 用药：卡片式提醒 */
 .med-card {
@@ -3917,145 +3919,6 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
 #atm-close:hover{ transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 5px 12px rgba(180,140,90,.22) !important; }
 #atm-add:active,
 #atm-close:active{ transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 2px 4px rgba(180,140,90,.15) !important; }
-
-/* ===================== 银行存单模块 ===================== */
-#dep-root { font-size: 14px; }
-.dep-msg { padding: 24px 12px; text-align: center; color: #9a8f7a; line-height: 1.7; }
-.dep-gate { max-width: 420px; margin: 8px auto; background: #fffdf9; border: 1px solid #efe6d8; border-radius: 16px; padding: 18px 16px; box-shadow: 0 6px 20px rgba(180,150,110,.10); }
-.dep-gate h4 { margin: 0 0 8px; color: #5f7a5a; font-size: 17px; }
-.dep-tip { font-size: 12.5px; color: #9a8f7a; line-height: 1.6; margin: 6px 0 12px; }
-.dep-field { margin-bottom: 11px; }
-.dep-field label { display: block; font-size: 12.5px; color: #7a6f5d; margin-bottom: 4px; font-weight: 600; }
-.dep-field input, .dep-field select, .dep-field textarea {
-  width: 100%; padding: 9px 11px; border: 1.5px solid #e4d8c5; border-radius: 10px; font: inherit; font-size: 14px; background: #fff; color: #3b342b; outline: none; box-sizing: border-box;
-}
-.dep-field input:focus, .dep-field select:focus, .dep-field textarea:focus { border-color: #8fae7e; }
-.dep-field textarea { min-height: 64px; resize: vertical; }
-.dep-date-row { display: flex; align-items: center; gap: 8px; }
-.dep-date-row .date-disp { flex: 1; min-width: 0; }
-.dep-amt-cn { font-size: 13px; color: #3b6e2f; background: #eef6e8; border-radius: 8px; padding: 6px 10px; margin: -4px 0 10px; min-height: 0; }
-.dep-amt-cn:not(.show) { display: none; }
-.dep-banks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
-.dep-banks-tip { font-size: 12px; color: #7c8b6f; margin-right: 2px; }
-.dep-banks-empty { font-size: 12px; color: #a9b39c; }
-.dep-chip { border: 1px solid #cfe0c2; background: #f3f9ee; color: #4a6b3a; border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; transition: .15s; white-space: nowrap; }
-.dep-chip:hover { background: #e4f1d8; border-color: #8fae7e; }
-.dep-chip-mg { border-style: dashed; color: #8a6db0; border-color: #d8c7ee; background: #f6f0fb; }
-.dep-chip-mg:hover { background: #efe5fa; border-color: #b79be0; }
-.dep-mask { position: fixed; inset: 0; background: rgba(40,50,35,.42); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 18px; }
-.dep-modal { width: 100%; max-width: 340px; background: #fff; border-radius: 18px; box-shadow: 0 12px 40px rgba(60,80,40,.28); overflow: hidden; }
-.dep-modal-h { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #eef1e8; font-size: 15px; color: #3c4a30; }
-.dep-modal-x { width: 26px; height: 26px; border-radius: 50%; border: none; background: #f0efe9; color: #6b6b6b; font-size: 16px; line-height: 1; cursor: pointer; }
-.dep-modal-x:hover { background: #e6e3da; }
-.dep-modal-x.sm { width: 22px; height: 22px; font-size: 14px; background: #f7e3e3; color: #c0495b; }
-.dep-modal-x.sm:hover { background: #f3d2d2; }
-.dep-modal-body { padding: 14px 16px 16px; }
-.dep-bank-add { display: flex; gap: 8px; margin-bottom: 12px; }
-.dep-bank-add input { flex: 1; border: 1px solid #d7e0cc; border-radius: 10px; padding: 9px 10px; font-size: 14px; }
-.dep-bank-add input:focus { border-color: #8fae7e; outline: none; }
-.dep-bank-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
-.dep-bank-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #f6f9f1; border: 1px solid #e7eede; border-radius: 10px; padding: 8px 12px; font-size: 14px; color: #3c4a30; }
-.dep-modal-tip { font-size: 12px; color: #a3ad95; margin: 10px 0 0; line-height: 1.5; }
-.dep-hint { font-size: 11.5px; color: #9a8a6a; margin-top: 4px; }
-.dep-hint:not(.show) { display: none; }
-.dep-sq-box { background: #f6f1e8; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
-.dep-sq-title { font-size: 12.5px; color: #7a6f5d; font-weight: 600; margin-bottom: 8px; }
-.dep-btn { display: inline-block; padding: 10px 16px; border: none; border-radius: 11px; background: #eef2e8; color: #4a5d44; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: .15s; }
-.dep-btn:hover { background: #e3ead9; }
-.dep-btn.primary { background: #6f9a5e; color: #fff; width: 100%; }
-.dep-btn.primary:hover { background: #5f8a4e; }
-.dep-btn.warn { background: #fbe9b0; color: #8a6d1f; }
-.dep-btn.danger { background: #f7d9d6; color: #b3403a; }
-.dep-link { display: block; width: 100%; margin-top: 10px; background: none; border: none; color: #8fae7e; font: inherit; font-size: 13px; cursor: pointer; text-align: center; }
-.dep-err { color: #d05a52; font-size: 12.5px; min-height: 16px; margin: 8px 0 0; text-align: center; }
-.dep-banner { display: flex; flex-wrap: wrap; gap: 7px; padding: 10px 12px; border-radius: 12px; background: #fff6ec; margin-bottom: 12px; }
-.dep-banner.ok { background: #eef6ea; color: #5f8a4e; justify-content: center; font-size: 13px; }
-.dep-banner-pill { font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: #fff; color: #6b5f4d; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-.dep-banner-pill.urgent { color: #c0392b; }
-.dep-banner-pill.near { color: #b8860b; }
-.dep-banner-pill.expired { color: #6b6b6b; }
-.dep-banner-pill.over { color: #fff; background: #e5484d; }
-/* ===== 从文字识别填单 ===== */
-.dep-ocr-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #f3f8ee; border: 1px dashed #b9d2a8; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
-.dep-ocr-bar .dep-btn { background: #6f9a5e; color: #fff; }
-.dep-ocr-bar .dep-btn:hover { background: #5f8a4e; }
-.dep-ocr-tip { font-size: 12px; color: #7c8b6e; line-height: 1.4; flex: 1; min-width: 140px; }
-.dep-modal-tip { font-size: 12px; color: #a3ad95; margin: 10px 0 0; line-height: 1.5; }
-.dep-modal textarea { font-family: inherit; }
-.dep-banner-pill.warn { color: #8a6d1f; background: #fbf3da; }
-.dep-home-badge { display: none; margin-left: 8px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: linear-gradient(135deg,#ffd98a,#ffbf66); color: #8a5a00; vertical-align: middle; box-shadow: 0 1px 4px rgba(180,120,0,.3); letter-spacing: .2px; }
-.dep-home-badge.show { display: inline-block; animation: depBadgeBreath 2.4s ease-in-out infinite; }
-@keyframes depBadgeBreath { 0%,100% { box-shadow: 0 1px 4px rgba(180,120,0,.3); } 50% { box-shadow: 0 1px 12px rgba(255,170,40,.7); } }
-.dep-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; margin-bottom: 12px; }
-.dep-kpi { background: #fffdf9; border: 1px solid #efe6d8; border-radius: 12px; padding: 9px 4px; text-align: center; }
-.dep-kpi-n { font-size: 15px; font-weight: 700; color: #5f7a5a; }
-.dep-kpi-l { font-size: 10.5px; color: #9a8f7a; margin-top: 2px; }
-.dep-dist { background: #fffdf9; border: 1px solid #efe6d8; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
-.dep-dist-title { font-size: 12.5px; font-weight: 600; color: #7a6f5d; margin-bottom: 8px; }
-.dep-dist-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 12.5px; }
-.dep-dist-name { width: 72px; flex-shrink: 0; color: #5b5246; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dep-dist-bar { flex: 1; height: 8px; background: #f0e9dd; border-radius: 6px; overflow: hidden; }
-.dep-dist-bar > div { height: 100%; background: linear-gradient(90deg, #8fae7e, #6f9a5e); border-radius: 6px; }
-.dep-dist-amt { width: 78px; flex-shrink: 0; text-align: right; color: #5b5246; }
-.dep-filters { margin-bottom: 12px; }
-.dep-search { width: 100%; padding: 9px 12px; border: 1.5px solid #e4d8c5; border-radius: 10px; font: inherit; font-size: 14px; box-sizing: border-box; margin-bottom: 8px; outline: none; }
-.dep-search:focus { border-color: #8fae7e; }
-.dep-filter-row { display: flex; gap: 7px; margin-bottom: 7px; }
-.dep-filter-row select { flex: 1; min-width: 0; padding: 8px 6px; border: 1.5px solid #e4d8c5; border-radius: 10px; font: inherit; font-size: 12.5px; background: #fff; color: #3b342b; outline: none; }
-.dep-card { position: relative; display: flex; background: #fffdf9; border: 1px solid #efe6d8; border-radius: 13px; margin-bottom: 9px; overflow: hidden; cursor: pointer; transition: .15s; box-shadow: 0 2px 8px rgba(180,150,110,.07); }
-.dep-card:active { transform: scale(.995); }
-.dep-card-bar { width: 6px; background: var(--bar, #4caf50); flex-shrink: 0; }
-.dep-card-body { flex: 1; padding: 10px 12px; min-width: 0; }
-.dep-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.dep-bank { font-weight: 700; color: #4a4236; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dep-tag { font-size: 11px; font-weight: 600; color: #fff; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; white-space: nowrap; }
-.dep-card-amt { font-size: 18px; font-weight: 800; color: #5f7a5a; margin: 4px 0 2px; }
-.dep-card-meta { font-size: 12px; color: #9a8f7a; }
-.dep-empty { text-align: center; color: #9a8f7a; padding: 30px 10px; font-size: 13px; }
-.dep-fab { position: fixed; right: 18px; bottom: 84px; width: 54px; height: 54px; border-radius: 50%; border: none; background: #6f9a5e; color: #fff; font-size: 28px; line-height: 1; box-shadow: 0 6px 16px rgba(111,154,94,.45); cursor: pointer; z-index: 30; }
-.dep-fab:active { transform: scale(.94); }
-.dep-detail, .dep-form, .dep-settings { padding: 4px 2px; }
-.dep-back { background: none; border: none; color: #8fae7e; font: inherit; font-size: 14px; cursor: pointer; padding: 4px 0 10px; }
-.dep-d-bar { height: 5px; border-radius: 4px; margin-bottom: 10px; }
-.dep-detail h3 { margin: 0 0 4px; color: #4a4236; }
-.dep-d-status { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-.dep-d-amt { font-size: 24px; font-weight: 800; color: #5f7a5a; margin-bottom: 12px; }
-.dep-d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; background: #fffdf9; border: 1px solid #efe6d8; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-.dep-d-grid > div { font-size: 13px; color: #5b5246; }
-.dep-d-grid span { display: block; font-size: 11.5px; color: #9a8f7a; margin-bottom: 2px; }
-.dep-d-note { background: #f6f1e8; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #5b5246; margin-bottom: 12px; line-height: 1.6; word-break: break-word; }
-.dep-d-log { font-size: 12px; color: #9a8f7a; margin-bottom: 12px; }
-.dep-log-row { padding: 2px 0; }
-.dep-d-photos { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.dep-ph { width: 84px; height: 84px; border-radius: 10px; overflow: hidden; background: #f0e9dd; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.dep-ph img { width: 100%; height: 100%; object-fit: cover; }
-.dep-ph-loading, .dep-ph-err { font-size: 11px; color: #9a8f7a; padding: 4px; text-align: center; }
-.dep-d-actions { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.dep-d-actions .dep-btn { flex: 1; min-width: 84px; text-align: center; }
-.dep-int-est { font-size: 12.5px; color: #8a6d1f; background: #fbf3da; border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
-.dep-photos { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-.dep-ph-thumb { position: relative; width: 76px; height: 76px; border-radius: 10px; overflow: hidden; background: #f0e9dd; display: flex; align-items: center; justify-content: center; }
-.dep-ph-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.dep-ph-x { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
-.dep-form-actions { display: flex; gap: 10px; margin-top: 12px; }
-.dep-form-actions .dep-btn { flex: 1; text-align: center; }
-.dep-set-block { background: #fffdf9; border: 1px solid #efe6d8; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-.dep-set-block h4 { margin: 0 0 10px; color: #5f7a5a; font-size: 14.5px; }
-.dep-set-block.danger-block { border-color: #f3cfca; background: #fdf3f2; }
-.dep-set-block.danger-block h4 { color: #c0392b; }
-@media (max-width: 480px) { .dep-stats { grid-template-columns: repeat(3, 1fr); } .dep-kpi:nth-child(4), .dep-kpi:nth-child(5), .dep-kpi:nth-child(6) { grid-column: span 1; } }
-.dep-kpi-n.over { color: #e5484d; }
-/* 存单所属人 + 50万存款保险警戒线 */
-.dep-card-top .dep-warn-tag { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px; flex-shrink: 0; white-space: nowrap; margin-right: 4px; }
-.dep-warn-tag.over { background: #fde2e1; color: #c0392b; border: 1px solid #f3b5b2; }
-.dep-warn-tag.warn { background: #fbf3da; color: #8a6d1f; border: 1px solid #ecd9a3; }
-.dep-d-owner { font-size: 12.5px; color: #8a7f6c; margin-bottom: 8px; }
-.dep-over-box { font-size: 12.5px; line-height: 1.6; border-radius: 10px; padding: 9px 11px; margin-bottom: 12px; }
-.dep-over-box.over { background: #fdf0ef; border: 1px solid #f3c4c1; color: #c0392b; }
-.dep-over-box.warn { background: #fbf3da; border: 1px solid #ecd9a3; color: #8a6d1f; }
-.dep-limit-hint { font-size: 10.5px; color: #a99a82; flex: 1; text-align: right; align-self: center; }
-@media (max-width: 480px) { .dep-limit-hint { flex-basis: 100%; text-align: left; margin-top: 2px; } }
-
 
 /* ===== D2 倒计时分类 Tab / D3 过期归档 ===== */
 .cd-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
