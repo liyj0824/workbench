@@ -305,6 +305,8 @@ function defaultData() {
             var self = this;
             this.data.settings = Object.assign(d.settings, p.settings || {});
             if (!this.data.settings.hiddenTabs) this.data.settings.hiddenTabs = [];
+            /* 主页和个性化入口不允许被隐藏，否则会把用户锁在设置外 */
+            this.data.settings.hiddenTabs = this.data.settings.hiddenTabs.filter(function (x) { return x !== "home" && x !== "settings"; });
             if (!this.data.settings.cloudSync) this.data.settings.cloudSync = clone(d.settings.cloudSync);
             this.data.study = Object.assign(d.study, p.study || {});
             this.data.ent = Object.assign(d.ent, p.ent || {});
@@ -393,9 +395,14 @@ function defaultData() {
             });
             if (!this.data.life.cardBg) this.data.life.cardBg = {};
             this.data.life.cardBg = Object.assign(d.life.cardBg, this.data.life.cardBg);
+            /* 防止 life.order / hidden 损坏成非数组导致整区空白 */
+            if (!Array.isArray(this.data.life.order)) this.data.life.order = [];
+            if (!Array.isArray(this.data.life.hidden)) this.data.life.hidden = [];
             /* 把新增功能默认加入可见列表（兼容旧数据） */
             var defaultOrder = ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "cardwall"];
             defaultOrder.forEach(function (k) { if (self.data.life.order.indexOf(k) < 0 && self.data.life.hidden.indexOf(k) < 0) self.data.life.order.push(k); });
+            /* 若生活功能全部丢失（order 与 hidden 都空），自动恢复默认，避免整区空白看不见任何功能 */
+            if (!this.data.life.order.length && !this.data.life.hidden.length) this.data.life.order = defaultOrder.slice();
             /* 旧模块配色迁移到莫兰迪淡绿/青色系 */
             var OLD = ["#5f7a5a", "#b08d4f", "#3a6ea5", "#a5503a", "#7a5aa5", "#4a8a6a"];
             var NEW = ["#a9c4b5", "#bcd3cb", "#aec9cf", "#bcd0c0", "#b0cdd6", "#c3d7c8"];
@@ -9310,7 +9317,7 @@ function defaultData() {
     var hidden = Store.data.settings.hiddenTabs || [];
     var tabs = [["home", "主页"], ["study", "学习"], ["ent", "娱乐"], ["life", "生活"], ["settings", "个性化"]];
     tabs.forEach(function (t) {
-      if (hidden.indexOf(t[0]) >= 0) return;
+      if (t[0] !== "home" && t[0] !== "settings" && hidden.indexOf(t[0]) >= 0) return;
       var b = document.createElement("button"); b.className = "tab" + (state.tab === t[0] ? " active" : "");
       b.setAttribute("data-tab", t[0]);
       var iconHtml;
@@ -9978,6 +9985,15 @@ function defaultData() {
     /* 首页模块排版 */
     $("set-hmorder").onclick = openHomeModuleOrder;
     document.querySelectorAll(".set-tab").forEach(function (cb) {
+      /* 主页和个性化入口必须始终显示，避免用户把自己锁在设置外 */
+      if (cb.value === "home" || cb.value === "settings") {
+        cb.checked = true;
+        cb.disabled = true;
+        cb.parentNode.style.opacity = "0.5";
+        cb.parentNode.title = "此项必须显示";
+        syncCbActive(cb);
+        return;
+      }
       cb.checked = (Store.data.settings.hiddenTabs || []).indexOf(cb.value) < 0;
       syncCbActive(cb);
       cb.onchange = function () {

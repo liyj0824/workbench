@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>娱乐区预览 · 小李的工作台</title>
+<style>
+  /* ============ 完全沿用原工作台设计变量 ============ */
+  :root{
+    --cream:#f7f5ed; --cream3:#faf6ec;
+    --green:#7b9a73; --green-deep:#2e5a47; --green-dark:#4a6246;
+    --green-pale:#dbe5d3; --green-mist:#c9d6c0;
+    --gold:#b8a67d; --red:#b87a72; --ink:#4a4a42;
+    --shadow:0 4px 14px rgba(95,90,75,.08);
+    --shadow-sm:0 2px 8px rgba(95,90,75,.06);
+    --clay-radius:24px;
+    --font-size-base:15px;
+    --ui-font:"Noto Serif SC","Songti SC","STSong","SimSun","宋体",serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--ui-font);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #cfe2d4 0%, transparent 55%),
+      radial-gradient(900px 500px at -10% 100%, #e7d9c0 0%, transparent 50%),
+      var(--cream);
+    color:var(--ink); min-height:100vh; font-size:var(--font-size-base);
+    padding-bottom:90px;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.55;
+    background:
+      radial-gradient(380px 380px at 85% 18%, rgba(143,211,182,.55) 0%, transparent 70%),
+      radial-gradient(280px 280px at 12% 75%, rgba(255,209,102,.35) 0%, transparent 70%);
+  }
+  .page{position:relative;z-index:1;max-width:430px;margin:0 auto;padding:14px 14px 14px}
+  .page-title{
+    display:inline-flex;align-items:center;gap:8px;font-weight:600;color:#fff;
+    background:var(--green-deep);border-radius:20px;padding:8px 14px;
+    box-shadow:var(--shadow-sm);font-family:var(--ui-font);margin-bottom:14px;
+  }
+  .sub-tabs{display:flex;gap:6px;margin-bottom:14px;background:rgba(255,251,242,.6);
+    border-radius:18px;padding:5px;box-shadow:6px 6px 14px rgba(154,144,130,.30), -4px -4px 10px rgba(255,255,255,.60),inset 0 1px 0 rgba(255,255,255,.6)}
+  .sub-tabs .sub{
+    flex:1;text-align:center;border:none;background:rgba(255,251,242,.86);
+    color:var(--green-dark);padding:9px 6px;border-radius:14px;font-size:14px;
+    font-weight:600;font-family:inherit;cursor:pointer;transition:.15s;
+    border:1px solid rgba(255,255,255,.6);
+    box-shadow:0 4px 10px -4px rgba(60,50,30,.35),inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  .sub-tabs .sub.active{
+    background:var(--green-deep);color:#fff;
+    box-shadow:0 4px 10px -4px rgba(60,50,30,.4),inset 0 1px 0 rgba(255,255,255,.18);
+    border:1px solid rgba(255,255,255,.4);text-shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+  .card{
+    background:rgba(255,255,255,.82);
+    border:1px solid rgba(123,154,115,.3);
+    border-radius:var(--clay-radius);
+    box-shadow:0 4px 14px -4px rgba(20,16,10,.2);
+    padding:14px;margin-bottom:12px;color:var(--green-dark);
+    backdrop-filter:blur(6px);
+  }
+  .card-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .card-title{font-weight:700;font-size:14px;color:var(--green-dark);letter-spacing:.5px}
+  .tip{font-size:12px;color:#8a6a2a;background:rgba(184,166,125,.12);border-radius:12px;padding:10px 12px;margin-bottom:12px;line-height:1.6}
+  .tip b{color:#6b4e16}
+  .input-area{
+    width:100%;border:1px solid rgba(123,154,115,.3);border-radius:14px;
+    padding:11px 12px;font-size:14px;background:#fff;
+    color:var(--green-dark);font-family:inherit;outline:none;line-height:1.5;
+    min-height:60px;resize:none;box-shadow:inset 0 1px 3px rgba(20,16,10,.06);
+  }
+  .btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .soft-btn{
+    flex:1;min-width:80px;border:none;border-radius:13px;padding:10px 8px;font-size:13px;
+    background:var(--cream3);color:var(--green-dark);font-weight:600;cursor:pointer;
+    box-shadow:var(--shadow-sm);font-family:inherit;
+  }
+  .soft-btn.primary{background:var(--green-deep);color:#fff}
+  .soft-btn:active{transform:scale(.97)}
+  .soft-btn.block{width:100%;flex:none}
+  .preview{
+    margin-top:12px;border:1px dashed rgba(123,154,115,.4);border-radius:14px;
+    padding:10px 12px;font-size:13px;background:rgba(219,229,211,.25);display:none;
+  }
+  .preview.show{display:block}
+  .preview .line{margin:3px 0}
+  .preview .k{color:var(--green-deep);font-weight:700;margin-right:6px}
+  .preview .src{color:#8a6a2a}
+  .preview .badge{display:inline-block;font-size:11px;border-radius:8px;padding:2px 8px;background:var(--gold);color:#fff;font-weight:700;margin-left:6px}
+  .search-input{
+    width:100%;border:1px solid rgba(123,154,115,.3);border-radius:14px;
+    padding:11px 14px 11px 38px;font-size:14px;background:#fff;
+    color:var(--green-dark);font-family:inherit;outline:none;box-shadow:inset 0 1px 3px rgba(20,16,10,.06);
+  }
+  .search-wrap{position:relative;margin-bottom:10px}
+  .search-wrap .ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.6}
+  .st-tabs{display:flex;gap:6px;margin-bottom:10px}
+  .st-tab{
+    flex:1;text-align:center;padding:8px 4px;border-radius:12px;font-size:13px;font-weight:600;
+    background:rgba(255,251,242,.7);border:1px solid rgba(123,154,115,.25);
+    color:var(--green-dark);cursor:pointer;font-family:inherit;
+  }
+  .st-tab.on{background:var(--green-pale);border-color:var(--green);color:var(--green-deep)}
+  /* 标签轴 */
+  .tagbar{margin-bottom:12px}
+  .tagbar .ax{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}
+  .tagbar .ax .axn{font-size:11px;opacity:.55;width:54px;flex:0 0 auto}
+  .tagbtn{border:none;border-radius:12px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+    background:rgba(255,255,255,.7);color:var(--green-dark);border:1px solid rgba(123,154,115,.25)}
+  .tagbtn.on{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+  .tagbtn.empty{opacity:.35}
+  .shelf-list{display:flex;flex-direction:column;gap:10px}
+  .shelf-item{
+    background:rgba(255,255,255,.82);border:1px solid rgba(123,154,115,.3);border-radius:16px;
+    padding:12px 13px;color:var(--green-dark);box-shadow:0 4px 10px -4px rgba(20,16,10,.2);
+    backdrop-filter:blur(6px);position:relative;
+  }
+  .shelf-item .name{font-weight:700;font-size:15px;line-height:1.35;padding:0 54px 0 30px}
+  .shelf-item .sel{position:absolute;top:13px;left:11px;width:18px;height:18px;accent-color:var(--green-deep);cursor:pointer}
+  .shelf-item .author{font-size:12px;opacity:.7;margin-top:2px;font-style:italic}
+  .shelf-item .src{font-size:11px;background:rgba(184,166,125,.18);color:#6b4e16;border-radius:8px;padding:3px 8px;display:inline-block;margin-top:6px;font-weight:600}
+  .shelf-item .arc{font-size:11px;background:var(--green-pale);color:var(--green-dark);border-radius:8px;padding:3px 8px;display:inline-block;margin-top:6px;font-weight:600;margin-left:4px}
+  .shelf-item .tags{margin-top:7px}
+  .tagpill{display:inline-block;font-size:11px;border-radius:10px;padding:3px 9px;font-weight:600;margin:0 4px 4px 0;cursor:pointer}
+  .tagpill.world{background:#d8e6f0;color:#2e5a72}
+  .tagpill.rel{background:#ead8f0;color:#5a3a72}
+  .tagpill.char{background:#f0e0d2;color:#7a4a2a}
+  .tagpill.bg{background:#d8f0d8;color:#2e6a3a}
+  .tagpill.taste{background:#f0e0ea;color:#7a3a5a}
+  .shelf-item .op{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .op-btn{border:none;border-radius:11px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;flex:1;font-family:inherit;min-width:64px}
+  .op-btn.read{background:var(--green-pale);color:var(--green-dark)}
+  .op-btn.drop{background:#f3dfe1;color:#9a424a}
+  .op-btn.tag{background:#e7e0f3;color:#5a4a7a}
+  .op-btn.del{background:#ebe6de;color:var(--ink);opacity:.6}
+  .st-badge{position:absolute;top:12px;right:13px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+  .st-badge.try{background:#e7e0f3;color:#5a4a7a}
+  .st-badge.read{background:#cfe5d6;color:#2e5a47}
+  .st-badge.drop{background:#f3dfe1;color:#9a424a}
+  .empty{text-align:center;color:var(--green-dark);opacity:.5;font-size:13px;padding:36px 10px;font-style:italic}
+  .dock{position:fixed;left:0;right:0;bottom:0;max-width:430px;margin:0 auto;
+    background:rgba(247,245,237,.92);backdrop-filter:blur(8px);border-top:1px solid rgba(123,154,115,.25);
+    display:flex;gap:8px;padding:10px 14px;z-index:30}
+  .dock button{flex:1;border:none;border-radius:14px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;
+    background:rgba(255,255,255,.6);color:var(--green-dark);font-family:inherit;box-shadow:var(--shadow-sm)}
+  .dock button:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+  .mask{position:fixed;inset:0;background:rgba(46,90,71,.35);display:none;align-items:flex-end;z-index:50;backdrop-filter:blur(2px)}
+  .mask.show{display:flex}
+  .sheet{background:rgba(255,251,242,.96);width:100%;max-width:430px;margin:0 auto;border-radius:24px 24px 0 0;
+    padding:20px 16px 26px;max-height:86vh;overflow:auto;box-shadow:0 -10px 30px rgba(20,16,10,.2);
+    animation:rise .25s ease;color:var(--green-dark);font-family:var(--ui-font);position:relative}
+  @keyframes rise{from{transform:translateY(100%)}to{transform:none}}
+  .sheet h3{margin:0 0 4px;font-size:17px;font-weight:700}
+  .sheet .sub{font-size:12px;opacity:.65;margin-bottom:14px}
+  .close{position:absolute;top:16px;right:18px;font-size:24px;cursor:pointer;opacity:.5;color:var(--green-dark)}
+  .pk-item{display:flex;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px dashed rgba(123,154,115,.2)}
+  .pk-item:last-child{border:none}
+  .hidden{display:none!important}
+  .file-hidden{display:none}
+  .toast{position:fixed;left:50%;top:14%;transform:translateX(-50%);background:var(--green-deep);color:#fff;padding:12px 18px;border-radius:14px;font-size:14px;box-shadow:0 8px 24px rgba(46,90,71,.35);opacity:0;transition:opacity .25s, top .25s;pointer-events:none;z-index:99;max-width:80%;text-align:center}
+  .toast.show{opacity:1}
+  /* 标签编辑弹窗 */
+  .edit-ax{margin-bottom:14px}
+  .edit-ax .an{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--green-deep)}
+  .edit-ax .words{display:flex;flex-wrap:wrap;gap:7px}
+  .edit-custom{display:flex;gap:7px;margin-top:12px;align-items:center}
+  .edit-custom select{border:1px solid rgba(123,154,115,.4);border-radius:12px;padding:8px 6px;font-family:inherit;font-size:13px;background:rgba(255,255,255,.7);color:var(--green-deep)}
+  .edit-custom input{flex:1;border:1px solid rgba(123,154,115,.4);border-radius:12px;padding:9px 11px;font-family:inherit;font-size:13px;background:rgba(255,255,255,.7)}
+  .edit-custom input:focus{outline:none;border-color:var(--green-deep)}
+  .wbtn{border:none;border-radius:12px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;
+    background:rgba(255,255,255,.7);color:var(--green-dark);border:1px solid rgba(123,154,115,.3)}
+  .wbtn.on{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+  /* 压缩包清单 */
+  .pk-pack{border:1px solid rgba(123,154,115,.25);border-radius:14px;padding:10px 12px;margin-bottom:10px;background:rgba(255,255,255,.5)}
+  .pk-pack-name{font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:6px}
+  .pk-count{font-size:11px;font-weight:600;background:var(--green-pale);color:var(--green-dark);border-radius:8px;padding:2px 8px;margin-left:6px}
+  .pk-series{font-size:12px;font-weight:700;color:#8a6a2a;margin:8px 0 4px}
+  .pk-item{font-size:13px;padding:4px 0 4px 6px;border-left:2px solid rgba(123,154,115,.35);margin:3px 0}
+  .pk-file{font-size:11px;opacity:.5;margin-left:6px;word-break:break-all}
+  /* 自动收纳汇总条 */
+  #packSummary{font-size:13px;background:var(--green-pale);color:var(--green-deep);border-radius:12px;padding:10px 12px;margin-bottom:12px;line-height:1.5}
+  #packSummary b{color:var(--green-dark)}
+  /* 多包定位 */
+  .shelf-item .arc.multi{display:block;background:rgba(123,154,115,.12);border:1px solid rgba(123,154,115,.28);color:var(--green-deep);padding:8px 10px;margin-top:6px;font-weight:500;line-height:1.9}
+  .shelf-item .arc.multi b{color:var(--green-dark)}
+  .ploc{display:inline-block;font-size:11px;background:#fff;border:1px solid rgba(123,154,115,.35);border-radius:8px;padding:2px 8px;margin:2px 4px 2px 0;color:#4a6b54}
+  .ploc.smallest{background:var(--green-deep);color:#fff;border-color:var(--green-deep);font-weight:700}
+  .arc-note{font-size:11px;color:#8a6a2a;margin-top:4px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="page-title">
+    <a href="index.html" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:5px">←</a>
+    娱乐区
+  </div>
+
+  <div class="sub-tabs" id="subtabs">
+    <button class="sub active" data-sub="novel">小说</button>
+    <button class="sub" data-sub="shelf">收纳</button>
+    <button class="sub" data-sub="insp">灵感</button>
+  </div>
+
+  <!-- 小说 tab：认真读完 / 在追的小说都记这儿，带标签轴 -->
+  <div id="novel-panel">
+    <div class="card">
+      <div class="card-row"><span class="card-title">收一本小说</span></div>
+      <div class="tip" style="margin-bottom:10px">
+        把文件名或百度网盘分享链接（含《书名》）粘进来，自动识别书名、作者，并预览可贴的标签。
+      </div>
+      <textarea id="entryInput" class="input-area" placeholder="把文件名，或百度网盘分享链接（含书名）粘进来"></textarea>
+      <div class="btn-row">
+        <button class="soft-btn" id="btnPaste">粘贴</button>
+        <button class="soft-btn" id="btnPick">选文件</button>
+        <button class="soft-btn primary" id="btnAdd" style="flex:0 0 auto;padding:10px 14px">收下</button>
+      </div>
+      <div class="preview" id="preview"></div>
+      <div class="tip" style="margin-top:12px">
+        <b>百度网盘场景：</b>在网盘里长按文件 → 分享 → 复制链接，把那段文字（含《书名》和链接）粘进来，自动识别书名、作者、标签，并把网盘链接存好，以后忘了在哪看一键找回。
+      </div>
+      <input type="file" id="filePick" class="file-hidden" multiple />
+      <hr style="border:none;border-top:1px solid rgba(46,90,71,.12);margin:16px 0" />
+      <div class="search-wrap">
+        <span class="ico">搜</span>
+        <input id="searchInput" class="search-input" placeholder="搜书名/作者，反查在哪个压缩包" />
+      </div>
+      <div class="tagbar" id="tagbar"></div>
+      <div class="st-tabs" id="stTabs">
+        <div class="st-tab on" data-st="all">全部</div>
+        <div class="st-tab" data-st="try">试读中</div>
+        <div class="st-tab" data-st="read">在读</div>
+        <div class="st-tab" data-st="drop">排雷</div>
+      </div>
+      <div class="shelf-list" id="shelfList"></div>
+    </div>
+  </div>
+
+  <!-- 收纳 tab：压缩包目录工具 -->
+  <div id="shelf-panel" class="hidden">
+    <div class="card">
+      <div class="card-row"><span class="card-title">压缩包目录</span></div>
+      <div class="tip" style="margin-bottom:10px">
+        你压好的小说包，时间一久就忘了里面有哪些？选一下压缩包，<b>自动读出里面每一本小说的名字，列成目录归档</b>。归档后回到「小说」一搜，就知道某本在哪个包里、重复出现时还会标出最小的包。
+      </div>
+      <button class="soft-btn primary block" id="btnPickZip">选压缩包，自动列目录（zip / dzip / tar / iso 都行）</button>
+      <div style="font-size:12px;opacity:.7;margin:12px 0 6px">或者：粘贴文件清单（一行一个文件名）</div>
+      <textarea id="packList" class="input-area" placeholder="每行一个文件名，例如：&#10;《龙傲天》by 热带雨林.txt&#10;《深海》.txt"></textarea>
+      <button class="soft-btn block" id="btnParseList" style="margin-top:8px">解析清单</button>
+      <input type="file" id="zipPick" class="file-hidden" multiple accept=".zip,.dzip,.tar,.tgz,.gz,.iso,.7z,.rar" />
+    </div>
+  </div>
+
+  <!-- 灵感 tab：脑洞 / 梗 / 想写的情节 -->
+  <div id="insp-panel" class="hidden">
+    <div class="card">
+      <div class="card-row"><span class="card-title">灵感</span></div>
+      <div class="tip" style="margin-bottom:10px">突然冒出来的脑洞、梗、想写的情节，随手记在这里。</div>
+      <textarea id="inspInput" class="input-area" placeholder="写点什么…"></textarea>
+      <button class="soft-btn primary block" id="btnAddInsp" style="margin-top:8px">记下</button>
+      <div class="shelf-list" id="inspList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- dock -->
+<div class="dock">
+  <button id="btnDelSel" disabled>删除选中 (0)</button>
+  <button id="btnClear">清空全部</button>
+</div>
+<div id="toast" class="toast"></div>
+
+<!-- 压缩包预览弹窗 -->
+<div class="mask" id="packMask">
+  <div class="sheet">
+    <span class="close" id="packClose">×</span>
+    <h3>压缩包目录清单</h3>
+    <div class="sub">解析完已<b>自动收纳</b>进小说架。下面按「单个压缩包一组」列出目录（文件夹=系列），可复制整份清单，或导出 .txt。以后在上方搜索书名，就能反查它在哪个包里。</div>
+    <div id="packPreview">
+      <div id="packItems" style="max-height:46vh;overflow:auto"></div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="soft-btn" id="btnCopyList">复制清单</button>
+        <button class="soft-btn" id="btnExportList">导出 .txt</button>
+      </div>
+      <button class="soft-btn primary block" id="btnSavePack" style="margin-top:8px">完成 ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- 标签编辑弹窗 -->
+<div class="mask" id="tagMask">
+  <div class="sheet">
+    <span class="close" id="tagClose">×</span>
+    <h3>给这本书加标签</h3>
+    <div class="sub" id="tagBookName"></div>
+    <div id="tagEditBody"></div>
+    <div class="edit-custom">
+      <select id="tagCustomAxis">
+        <option value="char">人设</option>
+        <option value="world">世界观</option>
+        <option value="bg">背景</option>
+        <option value="rel">感情线</option>
+        <option value="taste">口味</option>
+      </select>
+      <input id="tagCustomInput" placeholder="自己填，比如：DOM系攻 / 小狗受 / 双A" />
+      <button class="soft-btn" id="btnAddCustomTag">加</button>
+    </div>
+    <button class="soft-btn primary block" id="btnSaveTags" style="margin-top:14px">保存标签</button>
+  </div>
+</div>
+
+<script>
+  const $ = s => document.querySelector(s);
+  const $$ = s => document.querySelectorAll(s);
+  const STORE_KEY = 'novel-shelf-v2';
+  let data = { books: [], packs: [], ideas: [] };
+  let curPreview = null;
+  let packPacks = [];
+  let packPlainText = '';
+  let filterTag = null;       // 形如 "world:abo"
+  let editingTags = null;     // 编辑中的标签副本
+  let editingId = null;       // 正在编辑标签的书 id
+  let selectedIds = new Set(); // 多选删除：当前勾选的书 id
+
+  /* 标签轴定义 */
+  const TAG_AXES = [
+    {key:'world', name:'世界观', words:['哨兵向导','abo','双A','末世','无限流','修仙','西幻','机甲','克苏鲁','穿书','重生','灵异','AA恋','AO恋','OA恋','哨向']},
+    {key:'rel',   name:'感情线', words:['暗恋','破镜重圆','年上','年下','双向奔赴','师徒','冤家','追妻','青梅竹马','先婚后爱']},
+    {key:'char',  name:'人设（攻/受）', words:['美强惨','疯批','忠犬','腹黑','笨蛋美人','温柔','强强','病娇','DOM系攻','小狗受','年下攻','年上攻','温柔受','诱受','腹黑攻','爹系受','疯批攻']},
+    {key:'bg',    name:'背景',   words:['校园','娱乐圈','古耽','职场','星际','末日','豪门','电竞','种田']},
+    {key:'taste', name:'口味',   words:['HE','BE','甜','虐','群像','慢热','爽文','治愈']}
+  ];
+  const AX_NAME = {}; TAG_AXES.forEach(a=>AX_NAME[a.key]=a.name);
+
+  /* ---------- 存储 ---------- */
+  function load(){ try{ const r=localStorage.getItem(STORE_KEY); if(r) data=JSON.parse(r);}catch(e){} }
+  function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }catch(e){} }
+
+  /* ---------- 标签提取 ---------- */
+  function extractTags(text){
+    const t=(text||'').toLowerCase();
+    const out=[];
+    TAG_AXES.forEach(ax=>{
+      ax.words.forEach(w=>{ if(t.includes(w.toLowerCase())) out.push({axis:ax.key, v:w}); });
+    });
+    return out;
+  }
+
+  /* ---------- 核心：识别解析 ---------- */
+  function parseInput(text){
+    text=(text||'').trim();
+    const r={title:'',author:'',source:'',code:'',isBaidu:false,tags:[]};
+    const bM=text.match(/https?:\/\/pan\.baidu\.com\/s\/[A-Za-z0-9_-]+/);
+    if(bM){
+      r.isBaidu=true; r.source=bM[0];
+      const cM=text.match(/提取码[:：]?\s*([A-Za-z0-9]{4})/i)
+             ||text.match(/验证码[:：]?\s*([A-Za-z0-9]{4})/i)
+             ||text.match(/pwd[=:]?\s*([A-Za-z0-9]{4})/i);
+      if(cM) r.code=cM[1];
+    }
+    const tM=text.match(/《([^》\n]{1,60})》/);
+    if(tM){ r.title=tM[1].trim(); }
+    const aM=text.match(/(?:by|作者|—)\s*[:：]?\s*([一-龥A-Za-z0-9_·]{1,30})/i);
+    if(aM){ let a=aM[1].trim().split(/[（(【]/)[0].trim(); if(a) r.author=a; }
+    if(!r.title){
+      let pre = text.split(/链接|pan\.baidu/i)[0].trim();
+      const cM = pre.match(/[一-龥][一-龥A-Za-z0-9_·]{1,}/);
+      r.title = (cM && cM[0]!==r.author) ? cM[0] : '待整理';
+    }
+    r.tags = extractTags(text);
+    return r;
+  }
+
+  /* ---------- 录入区预览 ---------- */
+  function tagPillsHtml(tags){
+    if(!tags||!tags.length) return '<span style="opacity:.5">（没自动识别到标签，收下后可点「标签」补）</span>';
+    return tags.map(t=>'<span class="tagpill '+t.axis+'">'+escapeHtml(t.v)+'</span>').join('');
+  }
+  function updatePreview(){
+    const raw=$('#entryInput').value;
+    const r=parseInput(raw);
+    curPreview=r;
+    const box=$('#preview');
+    if(!raw.trim()){ box.classList.remove('show'); return; }
+    box.classList.add('show');
+    let h='';
+    h+='<div class="line"><span class="k">书名</span>《'+escapeHtml(r.title)+'》</div>';
+    h+='<div class="line"><span class="k">作者</span>'+(r.author||'（待补）')+'</div>';
+    if(r.isBaidu){
+      h+='<div class="line"><span class="k">来源</span><span class="src">百度网盘</span>';
+      if(r.code) h+=' <span class="src">提取码 '+escapeHtml(r.code)+'</span>';
+      h+='<span class="badge">已存链接</span></div>';
+    }
+    h+='<div class="line" style="margin-top:6px"><span class="k">标签</span>'+tagPillsHtml(r.tags)+'</div>';
+    box.innerHTML=h;
+  }
+  function escapeHtml(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+  /* ---------- 增删改 ---------- */
+  function addBook(r){
+    data.books.push({
+      id:'b'+Date.now()+Math.floor(Math.random()*999),
+      title:r.title||'待整理', author:r.author||'', status:'try',
+      pack:null, source:r.source||'', code:r.code||'', dropReason:'',
+      tags:(r.tags||[]).map(t=>t.axis+':'+t.v), date:today(), locs:[]
+    });
+    save(); render(); return true;
+  }
+  function setStatus(id,st){
+    const b=data.books.find(x=>x.id===id); if(!b) return;
+    b.status=st; if(st==='drop'&&!b.dropReason) b.dropReason='（未填原因）';
+    save(); render();
+  }
+  function delBook(id){ data.books=data.books.filter(x=>x.id!==id); save(); render(); }
+  function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(showToast._t); showToast._t=setTimeout(()=>t.classList.remove('show'),1800); }
+  function today(){ const d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+
+  /* ---------- 渲染小说架 ---------- */
+  function renderTagbar(){
+    const bar=$('#tagbar');
+    let html='';
+    TAG_AXES.forEach(ax=>{
+      const used=data.books.flatMap(b=>(b.tags||[])).filter(t=>t.startsWith(ax.key+':')).map(t=>t.split(':')[1]);
+      const uniq=[...new Set(used)];
+      if(!uniq.length) return;
+      html+='<div class="ax"><span class="axn">'+ax.name+'</span>';
+      uniq.forEach(w=>{
+        const key=ax.key+':'+w;
+        const on = filterTag===key ? ' on':'';
+        html+='<button class="tagbtn'+on+'" data-tag="'+key+'">'+escapeHtml(w)+'</button>';
+      });
+      html+='</div>';
+    });
+    if(filterTag){
+      html='<div class="ax"><button class="tagbtn on" data-tag="__clear">清除标签筛选：'+escapeHtml(filterTag.split(':')[1])+'</button></div>'+html;
+    }
+    bar.innerHTML=html;
+    bar.querySelectorAll('.tagbtn').forEach(btn=>{
+      btn.onclick=()=>{
+        const t=btn.getAttribute('data-tag');
+        if(t==='__clear') filterTag=null;
+        else filterTag = (filterTag===t)? null : t;
+        render();
+      };
+    });
+  }
+  function render(){
+    const kw=$('#searchInput').value.trim();
+    const st=$('.st-tab.on') ? $('.st-tab.on').getAttribute('data-st') : 'all';
+    let list=data.books.slice();
+    if(st!=='all') list=list.filter(b=>b.status===st);
+    if(filterTag) list=list.filter(b=>(b.tags||[]).includes(filterTag));
+    if(kw) list=list.filter(b=> (b.title+b.author).includes(kw));
+    renderTagbar();
+    const box=$('#shelfList');
+    if(!list.length){ box.innerHTML='<div class="empty">这里还空空如也，去上面记一本吧</div>'; return; }
+    box.innerHTML=list.map(b=>{
+      const arc = packLocsHtml(b);
+      const src = b.source ? '<div class="src">百度网盘'+(b.code?' · 提取码 '+escapeHtml(b.code):'')+'</div>' : '';
+      const tags=(b.tags||[]).map(t=>{const [ax,v]=t.split(':'); const on=(filterTag===t)?' style="outline:2px solid var(--green-deep)"':''; return '<span class="tagpill '+ax+'" data-tag="'+ax+':'+escapeHtml(v)+'"'+on+'>'+escapeHtml(v)+'</span>';}).join('');
+      let ops='';
+      if(b.status!=='read') ops+='<button class="op-btn read" data-act="read" data-id="'+b.id+'">标记在读</button>';
+      if(b.status!=='drop') ops+='<button class="op-btn drop" data-act="drop" data-id="'+b.id+'">弃坑</button>';
+      ops+='<button class="op-btn tag" data-act="tag" data-id="'+b.id+'">标签</button>';
+      ops+='<button class="op-btn del" data-act="del" data-id="'+b.id+'">删除</button>';
+      const badge={try:'试读中',read:'在读',drop:'排雷'}[b.status];
+      const reason = b.status==='drop'&&b.dropReason ? '<div class="author" style="color:#9a424a;font-style:normal">弃坑原因：'+escapeHtml(b.dropReason)+'</div>' : '';
+      return '<div class="shelf-item" data-id="'+b.id+'">'
+        +'<input type="checkbox" class="sel" data-id="'+b.id+'"'+(selectedIds.has(b.id)?' checked':'')+'>'
+        +'<span class="st-badge '+b.status+'">'+badge+'</span>'
+        +'<div class="name">《'+escapeHtml(b.title)+'》</div>'
+        +'<div class="author">作者：'+(escapeHtml(b.author)||'未知')+'</div>'
+        +src+arc+reason
+        +(tags?'<div class="tags">'+tags+'</div>':'')
+        +'<div class="op">'+ops+'</div>'
+        +'</div>';
+    }).join('');
+    box.querySelectorAll('.op-btn').forEach(btn=>{
+      btn.onclick=()=>{ const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
+        if(act==='read') setStatus(id,'read');
+        else if(act==='drop') setStatus(id,'drop');
+        else if(act==='del') delBook(id);
+        else if(act==='tag') openTagEdit(id);
+      };
+    });
+    box.querySelectorAll('.tagpill').forEach(p=>{
+      p.onclick=()=>{ const t=p.getAttribute('data-tag'); filterTag=(filterTag===t)?null:t; render(); };
+    });
+  }
+  function renderInsp(){
+    const box=$('#inspList');
+    if(!box) return;
+    if(!data.ideas.length){ box.innerHTML='<div class="empty">还没有灵感，写点什么吧</div>'; return; }
+    box.innerHTML=data.ideas.map(it=>{
+      return '<div class="shelf-item" data-id="'+it.id+'">'
+        +'<div class="name" style="font-weight:600;font-size:14px">'+escapeHtml(it.text)+'</div>'
+        +'<div class="op"><button class="op-btn del" data-act="delinsp" data-id="'+it.id+'">删除</button></div>'
+        +'</div>';
+    }).join('');
+    box.querySelectorAll('.op-btn').forEach(btn=>{
+      btn.onclick=()=>{ if(btn.getAttribute('data-act')==='delinsp'){ data.ideas=data.ideas.filter(x=>x.id!==btn.getAttribute('data-id')); save(); renderInsp(); } };
+    });
+  }
+
+  /* ---------- 压缩包解析（零依赖） ---------- */
+  /* ===== 压缩包解析（支持 zip / dzip / tar / iso，可递归剥套娃） ===== */
+  const NOVEL_EXT=/\.(txt|epub|mobi|pdf|azw3|docx?|md)$/i;
+  const PKG_EXT=/\.(zip|dzip|tar|tgz|gz|iso|7z|rar)$/i;
+  function fixDzipSig(u8){
+    const out=u8.slice();
+    for(let i=0;i+3<out.length;i++){
+      if(out[i]===0x55&&out[i+1]===0x41&&out[i+2]===0x03&&out[i+3]===0x04){ out[i]=0x50; out[i+1]=0x4B; }
+      else if(out[i]===0x55&&out[i+1]===0x41&&out[i+2]===0x05&&out[i+3]===0x06){ out[i]=0x50; out[i+1]=0x4B; }
+      else if(out[i]===0x55&&out[i+1]===0x41&&out[i+2]===0x01&&out[i+3]===0x02){ out[i]=0x50; out[i+1]=0x4B; }
+    }
+    return out;
+  }
+  async function inflateRaw(slice){
+    for(const fmt of ['deflate-raw','deflate']){
+      try{
+        const ds=new DecompressionStream(fmt);
+        const w=ds.writable.getWriter(); w.write(slice); w.close();
+        const buf=await new Response(ds.readable).arrayBuffer();
+        return new Uint8Array(buf);
+      }catch(e){}
+    }
+    return null;
+  }
+  // 文件名解码：现代浏览器只支持 utf-8，gbk/big5 等中文编码会直接抛异常。
+  // 策略：严格 utf-8 → 尝试 gbk（支持则完美，不支持会抛则跳过）→ big5 → latin1 兜底，绝不崩溃。
+  function decodeBytes(bytes){
+    try{ const s=new TextDecoder('utf-8',{fatal:true}).decode(bytes); if(!s.includes('�')) return s; }catch(e){}
+    try{ return new TextDecoder('gbk').decode(bytes); }catch(e){}
+    try{ return new TextDecoder('big5').decode(bytes); }catch(e){}
+    return new TextDecoder('iso-8859-1').decode(bytes);
+  }
+  function readStr(u8,off,len){
+    let end=off; while(end<off+len && u8[end]!==0) end++;
+    return decodeBytes(u8.subarray(off,end));
+  }
+  function parsePax(content){
+    const m={}; let i=0;
+    while(i<content.length){
+      let j=i; while(j<content.length && content[j]>='0'&&content[j]<='9') j++;
+      const len=parseInt(content.substring(i,j),10); if(!len) break;
+      const line=content.substring(j,j+len);
+      const sp=line.indexOf(' ');
+      const kv=sp>=0?line.substring(sp+1):line;
+      const eq=kv.indexOf('=');
+      if(eq>0){ m[kv.substring(0,eq)]=kv.substring(eq+1,kv.length-1); }
+      i=j+len;
+    }
+    return m;
+  }
+  async function parseZipDeep(u8){
+    const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+    let eocd=-1;
+    for(let i=u8.length-22;i>=0;i--){ if(u8[i]===0x50&&u8[i+1]===0x4B&&u8[i+2]===0x05&&u8[i+3]===0x06){ eocd=i; break; } }
+    if(eocd<0) return null;
+    const cdOffset=dv.getUint32(eocd+16,true);
+    const cdCount=dv.getUint16(eocd+10,true);
+    const out=[]; let p=cdOffset;
+    for(let n=0;n<cdCount;n++){
+      if(dv.getUint32(p,true)!==0x02014b50) break;
+      const method=dv.getUint16(p+10,true);
+      const flag=dv.getUint16(p+8,true);
+      const compSize=dv.getUint32(p+20,true);
+      const fnLen=dv.getUint16(p+28,true);
+      const exLen=dv.getUint16(p+30,true);
+      const cmLen=dv.getUint16(p+32,true);
+      const fnStart=p+46;
+      const bytes=u8.subarray(fnStart,fnStart+fnLen);
+      const name=(flag&0x0800)?new TextDecoder('utf-8',{fatal:false}).decode(bytes):decodeBytes(bytes);
+      const localOff=dv.getUint32(p+42,true);
+      const lfnLen=dv.getUint16(localOff+26,true);
+      const lexLen=dv.getUint16(localOff+28,true);
+      const dataStart=localOff+30+lfnLen+lexLen;
+      out.push({name, isDir:/\/$/.test(name), method, dataStart, compSize});
+      p=fnStart+fnLen+exLen+cmLen;
+    }
+    return out;
+  }
+  function parseTarEntries(u8){
+    const out=[]; let p=0; const B=512; let pendingLong=null; let paxPath=null; let paxSize=null;
+    while(p+B<=u8.length){
+      let allZero=true; for(let k=0;k<B;k++){ if(u8[p+k]!==0){allZero=false;break;} }
+      if(allZero) break;
+      const name=readStr(u8,p,100).replace(/\0+$/,'');
+      const sizeStr=readStr(u8,p+124,12).replace(/\0+$/,'');
+      let size=parseInt(sizeStr.trim()||'0',8)||0;
+      const typeflag=String.fromCharCode(u8[p+156]);
+      const dataStart=p+B;
+      if(typeflag==='L'){
+        pendingLong=readStr(u8,dataStart,size).replace(/\0+$/,'');
+        p=dataStart+B*Math.ceil(size/B); continue;
+      }
+      if(typeflag==='x'||typeflag==='g'){
+        const content=new TextDecoder('utf-8').decode(u8.subarray(dataStart,dataStart+size));
+        const pax=parsePax(content);
+        if(pax.path) paxPath=pax.path;
+        if(pax.size) paxSize=parseInt(pax.size,10);
+        p=dataStart+B*Math.ceil(size/B); continue;
+      }
+      let finalName=pendingLong!==null?pendingLong:(paxPath!==null?paxPath:name); pendingLong=null; paxPath=null;
+      if(paxSize!==null){ size=paxSize; paxSize=null; }
+      const isDir=typeflag==='5'||/\/$/.test(finalName);
+      if(finalName) out.push({name:finalName,isDir,method:0,dataStart,compSize:size});
+      p=dataStart+B*Math.ceil(size/B);
+    }
+    return out;
+  }
+  function sniff(name,u8){
+    const low=name.toLowerCase();
+    const isZip=u8[0]===0x50&&u8[1]===0x4B&&u8[2]===0x03&&u8[3]===0x04;
+    const isDzip=u8[0]===0x55&&u8[1]===0x41&&u8[2]===0x03&&u8[3]===0x04;
+    if(low.endsWith('.dzip')||isDzip) return 'dzip';
+    if(low.endsWith('.zip')||isZip) return 'zip';
+    if(low.endsWith('.tar')) return 'tar';
+    if(low.endsWith('.iso')) return 'iso';
+    return null;
+  }
+  async function collectNovels(name,u8,depth,out,prefix){
+    if(depth>5) return;
+    const kind=sniff(name,u8);
+    let entries=null;
+    if(kind==='dzip') entries=await parseZipDeep(fixDzipSig(u8));
+    else if(kind==='zip') entries=await parseZipDeep(u8);
+    else if(kind==='tar') entries=parseTarEntries(u8);
+    else if(kind==='iso'){
+      let fixed=(u8[0]===0x55&&u8[1]===0x41)?fixDzipSig(u8):u8;
+      entries=await parseZipDeep(fixed);
+      if(!entries||!entries.length) entries=parseTarEntries(u8);
+    }
+    if(!entries||!entries.length) return;
+    for(const en of entries){
+      const full=en.name;
+      if(en.isDir||!full) continue;
+      const base=full.split('/').pop();
+      const dir=full.includes('/')?full.slice(0,full.lastIndexOf('/')):'';
+      const fullPath=prefix?prefix+'/'+full:full;
+      const fullDir=prefix?prefix+'/'+dir:dir;
+      // 路径里的第一层文件夹，就是一个「系列」
+      const series=fullDir.split('/')[0]||'';
+      if(NOVEL_EXT.test(base)) out.push({path:fullPath,base,dir:fullDir,series});
+      else if(PKG_EXT.test(base)){
+        let content=null;
+        if(en.method===0) content=u8.subarray(en.dataStart,en.dataStart+en.compSize);
+        else content=await inflateRaw(u8.subarray(en.dataStart,en.dataStart+en.compSize));
+        if(content&&content.length) await collectNovels(base,content,depth+1,out,prefix?prefix+'/'+base:base);
+      }
+    }
+  }
+  async function readPackNames(file){
+    const buf=await file.arrayBuffer();
+    const u8=new Uint8Array(buf);
+    const out=[];
+    await collectNovels(file.name,u8,0,out,'');
+    return out;
+  }
+  // 按系列（顶层文件夹）分组
+  function groupBySeries(items){
+    const map=new Map();
+    for(const it of items){
+      const key=it.series||'__none__';
+      if(!map.has(key)) map.set(key,[]);
+      map.get(key).push(it);
+    }
+    return map;
+  }
+  // 生成可复制/导出的纯文本清单
+  function plainForPack(p){
+    const lines=['【'+p.name+'】（'+fmtSize(p.size)+'） 共 '+p.items.length+' 本'];
+    for(const [series, its] of groupBySeries(p.items)){
+      lines.push(series==='__none__' ? '  · 散装（无系列文件夹）：' : '  ▸ 系列「'+series+'」：');
+      for(const it of its) lines.push('      《'+(it.title||'待整理')+'》'+(it.author?' · '+it.author:'')+'   ('+it.base+')');
+    }
+    return lines.join('\n');
+  }
+  function renderPackList(added, dup){
+    const wrap=$('#packItems');
+    if(!packPacks.length){ wrap.innerHTML='<div class="empty">还没读到内容</div>'; packPlainText=''; return; }
+    let html=''; let plain='';
+    if(added!=null){
+      html+='<div id="packSummary">✓ 已自动收纳进小说架：新收 <b>'+added+'</b> 本，已在其他包见过的 <b>'+dup+'</b> 本（已合并，不重复）</div>';
+    }
+    packPacks.forEach(p=>{
+      plain += plainForPack(p)+'\n\n';
+      html+='<div class="pk-pack"><div class="pk-pack-name">📦 '+escapeHtml(p.name)+'<span class="pk-count">'+p.items.length+' 本 · '+fmtSize(p.size)+'</span></div>';
+      for(const [series, its] of groupBySeries(p.items)){
+        html+='<div class="pk-series">'+(series==='__none__'?'散装（无系列文件夹）':'系列「'+escapeHtml(series)+'」')+'</div>';
+        its.forEach(it=>{
+          html+='<div class="pk-item">《'+escapeHtml(it.title||'待整理')+'》'+(it.author?' · '+escapeHtml(it.author):'')+'<span class="pk-file">'+escapeHtml(it.base)+'</span></div>';
+        });
+      }
+      html+='</div>';
+    });
+    wrap.innerHTML=html;
+    packPlainText=plain.trim();
+  }
+  /* ---------- 收纳：自动收藏 + 跨包去重 + 记录体积 ---------- */
+  // 同一本小说（书名+作者相同）只留一条，但记录它在哪几个包里
+  function normKey(title, author){
+    const t=(title||'').replace(/[\s《》<>（）()【】\[\]]/g,'').toLowerCase();
+    const a=(author||'').replace(/\s/g,'').toLowerCase();
+    return (t||'untitled')+'@@'+(a||'unknown');
+  }
+  function packById(id){ return data.packs.find(p=>p.id===id); }
+  function fmtSize(b){
+    if(b==null||isNaN(b)) return '体积?';
+    if(b<1024) return b+' B';
+    if(b<1048576) return (b/1024).toFixed(1)+' KB';
+    if(b<1073741824) return (b/1048576).toFixed(1)+' MB';
+    return (b/1073741824).toFixed(2)+' GB';
+  }
+  // 渲染「这本书在哪个/哪些压缩包里」；多个包时按体积排序并标出最小的
+  function packLocsHtml(b){
+    if(!b.locs||!b.locs.length) return '';
+    if(b.locs.length===1){
+      const p=packById(b.locs[0].packId);
+      const series=b.locs[0].series?' · 系列「'+escapeHtml(b.locs[0].series)+'」':'';
+      return '<div class="arc">📦 在《'+escapeHtml(p?p.name:'?')+'》'+series+'</div>';
+    }
+    const arr=b.locs.map(l=>({p:packById(l.packId), l}))
+      .sort((a,b)=>(a.p?a.p.size||0:1e15)-(b.p?b.p.size||0:1e15));
+    let h='<div class="arc multi">📦 在 <b>'+arr.length+'</b> 个压缩包里（按体积排序）：';
+    arr.forEach((o,i)=>{
+      const sz=o.p?fmtSize(o.p.size):'?';
+      const series=o.l.series?' · '+escapeHtml(o.l.series):'';
+      const small=i===0?' smallest':'';
+      h+='<span class="ploc'+small+'">《'+escapeHtml(o.p?o.p.name:'?')+'》'+sz+series+(i===0?' ★最小·推荐下这个':'')+'</span>';
+    });
+    h+='</div><div class="arc-note">→ 这本在多个包里，回百度网盘下「最小的那个包」就够啦</div>';
+    return h;
+  }
+  // 把一批小说条目收进存储；name/size 是该压缩包的名字与体积
+  async function collectFromPack(name, size, items){
+    let pack=data.packs.find(p=>p.name===name && (p.size||0)===(size||0));
+    if(!pack){ pack={id:'p'+Date.now()+Math.floor(Math.random()*9999), name, size:size||0, date:today()}; data.packs.push(pack); }
+    let added=0, dup=0;
+    for(const it of items){
+      const r=parseInput(it.base);
+      const key=normKey(r.title, r.author);
+      let b=data.books.find(x=>normKey(x.title, x.author)===key);
+      if(!b){
+        b={id:'b'+Date.now()+Math.floor(Math.random()*9999)+Math.floor(Math.random()*9999),
+           title:r.title||'待整理', author:r.author||'', status:'try',
+           pack:pack.id, source:'', code:'', dropReason:'',
+           tags:(r.tags||[]).map(t=>t.axis+':'+t.v), date:today(),
+           locs:[{packId:pack.id, path:it.path, series:it.series||''}]};
+        data.books.push(b); added++;
+      } else {
+        if(!b.locs) b.locs=[];
+        if(!b.locs.some(l=>l.packId===pack.id && l.path===it.path))
+          b.locs.push({packId:pack.id, path:it.path, series:it.series||''});
+        dup++;
+      }
+    }
+    save();
+    return {added, dup, total:items.length};
+  }
+  // 解析一个真实压缩包文件：读取条目 → 自动收纳 → 构造成预览清单
+  async function collectAndPreview(file){
+    const items=await readPackNames(file);
+    if(!items.length) return null;
+    const name=file.name.replace(/\.(zip|dzip|tar|tgz|gz|iso|7z|rar)$/i,'');
+    const res=await collectFromPack(name, file.size, items);
+    const parsed=items.map(it=>({...it, ...parseInput(it.base), size:file.size}));
+    packPacks.push({name, items:parsed, size:file.size});
+    return res;
+  }
+
+  /* ---------- 标签编辑弹窗 ---------- */
+  function openTagEdit(id){
+    const b=data.books.find(x=>x.id===id); if(!b) return;
+    editingId=id;
+    editingTags=(b.tags||[]).slice();
+    $('#tagBookName').textContent='《'+(b.title||'待整理')+'》';
+    renderTagBody();
+    $('#tagMask').classList.add('show');
+  }
+  function renderTagBody(){
+    const body=$('#tagEditBody'); let html='';
+    TAG_AXES.forEach(ax=>{
+      html+='<div class="edit-ax"><div class="an">'+ax.name+'</div><div class="words">';
+      ax.words.forEach(w=>{
+        const on=editingTags.includes(ax.key+':'+w)?' on':'';
+        html+='<button class="wbtn'+on+'" data-ax="'+ax.key+'" data-w="'+escapeHtml(w)+'">'+escapeHtml(w)+'</button>';
+      });
+      html+='</div></div>';
+    });
+    body.innerHTML=html;
+    body.querySelectorAll('.wbtn').forEach(btn=>{
+      btn.onclick=()=>{
+        const k=btn.getAttribute('data-ax')+':'+btn.getAttribute('data-w');
+        const i=editingTags.indexOf(k);
+        if(i>=0) editingTags.splice(i,1); else editingTags.push(k);
+        btn.classList.toggle('on');
+      };
+    });
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  $$('#subtabs .sub').forEach(b=>b.addEventListener('click',()=>{
+    $$('#subtabs .sub').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const k=b.getAttribute('data-sub');
+    ['novel','shelf','insp'].forEach(n=>{const el=document.getElementById(n+'-panel'); if(el) el.classList.toggle('hidden',n!==k);});
+    if(k==='novel') render();
+    if(k==='insp') renderInsp();
+  }));
+  $$('#stTabs .st-tab').forEach(t=>t.addEventListener('click',()=>{
+    $$('#stTabs .st-tab').forEach(x=>x.classList.remove('on')); t.classList.add('on'); render();
+  }));
+  $('#entryInput').addEventListener('input',updatePreview);
+  $('#btnPaste').onclick=async()=>{
+    try{ const t=await navigator.clipboard.readText(); $('#entryInput').value=t; updatePreview(); }
+    catch(e){ $('#entryInput').focus(); }
+  };
+  $('#btnAdd').onclick=()=>{
+    const r=curPreview||parseInput($('#entryInput').value);
+    if(!r.title && !r.author){ alert('框里啥都没有，先粘点东西进来吧'); return; }
+    addBook(r);
+    $('#entryInput').value=''; $('#preview').classList.remove('show'); curPreview=null;
+  };
+  $('#btnPick').onclick=()=>$('#filePick').click();
+  $('#filePick').onchange=async e=>{
+    const files=[...e.target.files]; e.target.value='';
+    if(!files.length) return;
+    const pkgs=files.filter(f=>/\.(zip|dzip|tar|tgz|gz|iso|7z|rar)$/i.test(f.name));
+    if(pkgs.length){
+      packPacks=[]; let added=0,dup=0,any=false;
+      for(const pkg of pkgs){
+        try{
+          const res=await collectAndPreview(pkg);
+          if(res){ added+=res.added; dup+=res.dup; any=true; }
+        }catch(err){ alert('读「'+pkg.name+'」出错：'+(err&&err.message||err)); }
+      }
+      if(any){ renderPackList(added,dup); $('#packMask').classList.add('show'); }
+      else alert('没读出来小说，确认是压缩包且里面是 txt/epub/mobi/pdf 等？支持 zip / dzip / tar / iso');
+      return;
+    }
+    files.forEach(f=>addBook(parseInput(f.name)));
+  };
+  // 压缩包目录（自动收纳）
+  $('#btnPickZip').onclick=()=>$('#zipPick').click();
+  $('#zipPick').onchange=async e=>{
+    const files=[...e.target.files]; e.target.value='';
+    if(!files.length) return;
+    packPacks=[]; let added=0,dup=0,any=false;
+    for(const f of files){
+      try{
+        const res=await collectAndPreview(f);
+        if(res){ added+=res.added; dup+=res.dup; any=true; }
+      }catch(err){ alert('读「'+f.name+'」出错：'+(err&&err.message||err)); }
+    }
+    if(any){ renderPackList(added,dup); $('#packMask').classList.add('show'); }
+    else alert('这些包都没读出来小说，确认里面是 txt/epub/mobi/pdf 等？支持 zip / dzip / tar / iso');
+  };
+  $('#btnParseList').onclick=async()=>{
+    const lines=$('#packList').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    if(!lines.length){ alert('先粘一行一行的文件名'); return; }
+    const items=lines.map(l=>({path:l,base:l.replace(/^.*\//,''),dir:'',series:''}));
+    packPacks=[];
+    const res=await collectFromPack('手动清单', 0, items);
+    const parsed=items.map(it=>({...it, ...parseInput(it.base), size:0}));
+    packPacks.push({name:'手动清单', items:parsed, size:0});
+    renderPackList(res.added, res.dup);
+    $('#packMask').classList.add('show');
+  };
+  $('#packClose').onclick=()=>$('#packMask').classList.remove('show');
+  $('#btnSavePack').onclick=()=>{
+    $('#packMask').classList.remove('show');
+    packPacks=[]; packPlainText='';
+    render();
+  };
+  $('#btnCopyList').onclick=async()=>{
+    if(!packPlainText){ showToast('清单还是空的'); return; }
+    try{ await navigator.clipboard.writeText(packPlainText); showToast('清单已复制 ✓'); }
+    catch(e){
+      const ta=document.createElement('textarea'); ta.value=packPlainText; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); showToast('清单已复制 ✓'); }catch(_){ showToast('复制失败，请手动选择'); }
+      ta.remove();
+    }
+  };
+  $('#btnExportList').onclick=()=>{
+    if(!packPlainText){ showToast('清单还是空的'); return; }
+    const blob=new Blob([packPlainText],{type:'text/plain;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='压缩包目录清单.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    showToast('已导出 压缩包目录清单.txt');
+  };
+  // 标签编辑
+  $('#tagClose').onclick=()=>$('#tagMask').classList.remove('show');
+  // 自己填标签：选轴 + 输入词 → 加进编辑副本
+  $('#btnAddCustomTag').onclick=()=>{
+    const ax=$('#tagCustomAxis').value;
+    const w=$('#tagCustomInput').value.trim();
+    if(!w) return;
+    const k=ax+':'+w;
+    if(!editingTags.includes(k)) editingTags.push(k);
+    $('#tagCustomInput').value='';
+    renderTagBody();
+  };
+  $('#tagCustomInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#btnAddCustomTag').click(); } });
+  $('#btnSaveTags').onclick=()=>{
+    if(!editingTags) { $('#tagMask').classList.remove('show'); return; }
+    // 找到正在编辑的书：记录其 id
+    const b=data.books.find(x=>x.id===editingId);
+    if(b){ b.tags=editingTags.slice(); save(); }
+    $('#tagMask').classList.remove('show'); render();
+  };
+  // 清空全部 / 多选删除
+  $('#btnClear').onclick=()=>{ if(confirm('清空所有记录？此操作不可恢复')){ data={books:[],packs:[],ideas:[]}; selectedIds.clear(); save(); render(); renderInsp(); updateDelSelBtn(); } };
+  // 灵感：记下 / 渲染
+  $('#btnAddInsp').onclick=()=>{
+    const v=$('#inspInput').value.trim(); if(!v){ return; }
+    data.ideas.unshift({id:'i'+Date.now()+Math.floor(Math.random()*999), text:v});
+    $('#inspInput').value=''; save(); renderInsp();
+  };
+  if($('#inspList')) $('#inspList').addEventListener('change',renderInsp);
+  // 书卡勾选 → 多选删除
+  $('#shelfList').addEventListener('change', e=>{
+    const cb=e.target.closest('.sel'); if(!cb) return;
+    const id=cb.dataset.id;
+    if(cb.checked) selectedIds.add(id); else selectedIds.delete(id);
+    updateDelSelBtn();
+  });
+  function updateDelSelBtn(){
+    const n=selectedIds.size, btn=$('#btnDelSel');
+    if(btn){ btn.textContent='删除选中 ('+n+')'; btn.disabled = n===0; }
+  }
+  $('#btnDelSel').onclick=()=>{
+    const n=selectedIds.size; if(!n) return;
+    if(!confirm('确定删除选中的 '+n+' 本？此操作不可恢复')) return;
+    data.books=data.books.filter(b=>!selectedIds.has(b.id));
+    const used=new Set(); data.books.forEach(b=>(b.locs||[]).forEach(l=>used.add(l.packId)));
+    data.packs=data.packs.filter(p=>used.has(p.id)); // 清理没有书的孤立包
+    selectedIds.clear(); save(); render(); updateDelSelBtn();
+    showToast('已删除 '+n+' 本');
+  };
+  $('#searchInput').addEventListener('input',render);
+
+  /* ---------- 启动 ---------- */
+  load(); render();
+</script>
+</body>
+</html>
