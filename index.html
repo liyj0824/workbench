@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="小李的工作台">
 <title>小李的工作台</title>
 <link rel="manifest" href="manifest.json?v=20260803i">
-<link rel="stylesheet" href="style.css?v=20260825a">
+<link rel="stylesheet" href="style.css?v=20260830a">
 </head>
 <body>
 <div id="bg-layer"></div>
@@ -101,6 +101,7 @@
   <section class="page" id="page-ent" data-page="ent" hidden>
     <div class="sub-tabs" id="ent-subtabs">
       <button class="sub active" data-sub="novel">小说</button>
+      <button class="sub" data-sub="archive">文包目录</button>
       <button class="sub" data-sub="insp">灵感</button>
     </div>
     <div id="ent-novel">
@@ -110,7 +111,6 @@
           <div class="search-bar">
             <input type="text" id="novel-search" placeholder="搜索小说名称…">
           </div>
-          <button class="btn-primary" id="n-shelf-open" style="margin:0 0 10px;background:#2e5a47">打开压缩包收纳架（新功能）</button>
           <button class="btn-primary" id="n-add" style="margin:0 0 10px;">+ 添加小说</button>
           <ul class="item-list" id="novel-list"></ul>
         </div>
@@ -123,6 +123,35 @@
         <button class="btn-primary" id="insp-add">新建条目</button>
       </div>
       <ul class="item-list" id="insp-list"></ul>
+    </div>
+    <div id="ent-archive" hidden>
+      <div class="sub-tabs" id="arch-subtabs" style="margin-bottom:12px">
+        <button class="sub active" data-arch-sub="single">单本</button>
+        <button class="sub" data-arch-sub="pack">文包</button>
+      </div>
+      <div id="arch-single">
+        <div class="card">
+          <div class="card-title">收一本（只读简介 / 未系统阅读）</div>
+          <textarea id="single-input" placeholder="把文件名或百度网盘分享链接（含《书名》）粘进来…" style="width:100%;height:72px;box-sizing:border-box"></textarea>
+          <button class="btn-primary" id="single-parse" style="margin-top:8px;width:100%">识别并保存</button>
+          <div id="single-preview" style="margin-top:10px"></div>
+        </div>
+        <ul class="item-list" id="single-list"></ul>
+      </div>
+      <div id="arch-pack" hidden>
+        <div class="card">
+          <div class="card-title">解析压缩包目录</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <button class="btn-primary" id="pack-pick">选压缩包</button>
+          </div>
+          <p style="font-size:11px;color:#8aa885;margin:0 0 8px">支持 zip / dzip / tar / iso 递归剥嵌套</p>
+          <input type="file" id="pack-file" accept=".zip,.dzip,.tar,.iso,.tgz,.gz" multiple style="display:none">
+          <div id="pack-preview" style="margin-top:8px"></div>
+        </div>
+        <input type="text" id="archive-search" placeholder="搜书名/作者，反查在哪个压缩包" style="width:100%;padding:11px 14px;border-radius:14px;border:1px solid #c8d8c3;box-sizing:border-box;margin:10px 0">
+        <div id="archive-search-result"></div>
+        <div id="archive-list"></div>
+      </div>
     </div>
   </section>
 
@@ -288,6 +317,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260825a"></script>
+<script src="app.life.fixed.js?v=20260830a"></script>
 </body>
 </html>
