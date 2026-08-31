@@ -236,6 +236,7 @@ function defaultData() {
         weightUnit: "jin",
         memo: [],
         todo: [],
+        sleep: [],
         accounts: {
           entries: [],
           tags: {
@@ -263,6 +264,7 @@ function defaultData() {
     { key: "travel", name: "旅游计划" },
     { key: "collection", name: "云收藏柜" },
     { key: "cardwall", name: "动态卡面" },
+    { key: "sleep", name: "睡眠记录" },
   ];
   var SEASONS = [["spring", "春"], ["summer", "夏"], ["autumn", "秋"], ["winter", "冬"]];
   var WCATS = [["top", "衣服"], ["pants", "裤子"], ["shoes", "鞋子"], ["acc", "配饰"]];
@@ -322,6 +324,7 @@ function defaultData() {
             if (!this.data.life.travel) this.data.life.travel = clone(d.life.travel || defaultData().life.travel);
             if (!this.data.life.docs) this.data.life.docs = [];
             if (!this.data.life.todo) this.data.life.todo = [];
+            if (!Array.isArray(this.data.life.sleep)) this.data.life.sleep = [];
             /* 云收藏柜：旧数据没有该字段，补全并逐项兜底 */
             if (!this.data.life.collection) this.data.life.collection = clone(d.life.collection || defaultData().life.collection);
             var coll = this.data.life.collection;
@@ -401,7 +404,7 @@ function defaultData() {
             if (!Array.isArray(this.data.life.order)) this.data.life.order = [];
             if (!Array.isArray(this.data.life.hidden)) this.data.life.hidden = [];
             /* 把新增功能默认加入可见列表（兼容旧数据） */
-            var defaultOrder = ["weather", "period", "meds", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "cardwall"];
+            var defaultOrder = ["weather", "period", "meds", "sleep", "weight", "memo", "todo", "accounts", "wardrobe", "docs", "travel", "collection", "cardwall"];
             defaultOrder.forEach(function (k) { if (self.data.life.order.indexOf(k) < 0 && self.data.life.hidden.indexOf(k) < 0) self.data.life.order.push(k); });
             /* 若生活功能全部丢失（order 与 hidden 都空），自动恢复默认，避免整区空白看不见任何功能 */
             if (!this.data.life.order.length && !this.data.life.hidden.length) this.data.life.order = defaultOrder.slice();
@@ -448,7 +451,7 @@ function defaultData() {
     }
   };
 
-  var state = { tab: "home", cat: 0, mod: 0, phase: "basic", entSub: "novel", entFilter: null, entSearch: "", lifeSel: "weather", accFilter: { type: null, channel: null, tag: null }, accRange: "day", accType: "", wardrobeFilter: { season: null, category: null }, travelSel: null, travelSub: "itinerary", spotViewMode: "all", memoView: "todo", memoSort: "date" };
+  var state = { tab: "home", cat: 0, mod: 0, phase: "basic", entSub: "novel", entFilter: null, entSearch: "", lifeSel: "weather", accFilter: { type: null, channel: null, tag: null }, accRange: "day", accType: "", wardrobeFilter: { season: null, category: null }, travelSel: null, travelSub: "itinerary", spotViewMode: "all", memoView: "todo", memoSort: "date", sleepView: "list" };
 
   /* ============ 取色器 ============ */
   function hsvToRgb(h, s, v) {
@@ -2972,7 +2975,7 @@ function defaultData() {
   function renderHomeThumbs() {
     var ht = $("home-thumbs"); ht.innerHTML = "";
     if (Store.data.settings.showThumbs) {
-      var visible = Store.data.life.homeVisible || ["weather", "memo"];
+      var visible = Store.data.life.homeVisible || ["weather", "memo", "sleep"];
       visible.forEach(function (key) { var el = renderThumb(key); if (el) ht.appendChild(el); });
       if (!ht.children.length) { var e = document.createElement("div"); e.className = "thumb"; e.textContent = "点击生活速览标题右侧的「选择模块」添加卡片"; ht.appendChild(e); }
     }
@@ -3335,7 +3338,7 @@ function defaultData() {
     /* 整个卡片显示/隐藏 */
     card.style.display = s.quickAddVisible !== false ? "" : "none";
     /* 各按钮显示/隐藏 */
-    var btnMap = { "qa-memo": "memo", "qa-weight": "weight", "qa-period": "period", "qa-account": "account", "qa-todo": "todo" };
+    var btnMap = { "qa-memo": "memo", "qa-weight": "weight", "qa-period": "period", "qa-account": "account", "qa-todo": "todo", "qa-sleep": "sleep" };
     Object.keys(btnMap).forEach(function(id) {
       var el = $(id);
       if (el) el.style.display = hidden.indexOf(btnMap[id]) >= 0 ? "none" : "";
@@ -3349,7 +3352,8 @@ function defaultData() {
       { id: "weight", label: "\u4F53\u91CD" },
       { id: "period", label: "\u7ECF\u671F" },
       { id: "account", label: "\u8BB0\u8D26" },
-      { id: "todo", label: "\u5F85\u529E" }
+      { id: "todo", label: "\u5F85\u529E" },
+      { id: "sleep", label: "\u7761\u7720" }
     ];
     var html = ''
       + '<h3 style="margin:0 0 10px;">\u5FEB\u901F\u8BB0\u4E00\u7B14 \u8BBE\u7F6E</h3>'
@@ -3493,6 +3497,54 @@ function defaultData() {
     };
     setTimeout(function () { var t = $("qt-text"); if (t) t.focus(); }, 200);
   }
+  function openQuickSleep() {
+    var now = new Date();
+    var hm = ("0" + now.getHours()).slice(-2) + ":" + ("0" + now.getMinutes()).slice(-2);
+    var html = ''
+      + '<h3 style="margin:0 0 10px;">快速记睡眠</h3>'
+      + '<div class="row"><label>日期</label><button type="button" id="qs-date" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fafafa;text-align:left;cursor:pointer;">' + todayStr() + '</button></div>'
+      + '<p class="hint" style="margin:-6px 0 8px;font-size:12px;color:#8a8068;">日期就是这条睡眠所属的那天，可自由选择；同一天可记多次</p>'
+      + '<div class="row"><label>入睡时间</label><input id="qs-time" type="time" value="' + hm + '" style="padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;"></div>'
+      + '<div style="text-align:right;margin-top:10px;"><button class="btn-primary" id="qs-save">保存</button><button class="mini-btn" id="qs-cancel">取消</button></div>';
+    openModal(html);
+    var sDate = todayStr();
+    $("qs-cancel").onclick = closeModal;
+    $("qs-date").onclick = function () { openDatePicker({ mode: "single", value: sDate, onConfirm: function (d) { sDate = d; $("qs-date").textContent = d; } }); };
+    $("qs-save").onclick = function () {
+      var t = ($("qs-time") ? $("qs-time").value : hm) || hm;
+      var belong = sleepBelongDate(sDate, t);
+      if (!Array.isArray(Store.data.life.sleep)) Store.data.life.sleep = [];
+      Store.data.life.sleep.push({ id: uid(), date: belong, bedtime: t });
+      Store.save(); closeModal(); renderHome(); toast("睡眠已记录");
+    };
+  }
+  /* 记录“已服”：默认按点击此刻，但允许改成真实服药时间（补记场景） */
+  function openMedTake(mi) {
+    var med = Store.data.life.meds[mi];
+    if (!med) return;
+    var now = new Date();
+    var sDate = todayStr();
+    var sTime = ("0" + now.getHours()).slice(-2) + ":" + ("0" + now.getMinutes()).slice(-2);
+    var html = '<h3>记录服药时间</h3>'
+      + '<div class="row"><label>日期</label><button type="button" id="mt-date" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fafafa;text-align:left;cursor:pointer;">' + sDate + '</button></div>'
+      + '<p class="hint" style="margin:-6px 0 8px;font-size:12px;color:#8a8068;">默认就是“现在”；如果是之前忘了记、现在补记，请把时间改成你真正吃药的那一刻，下次会按真实时间推算</p>'
+      + '<div class="row"><label>服药时间</label><input id="mt-time" type="time" value="' + sTime + '" style="padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;"></div>'
+      + '<div class="form-actions"><button class="btn-secondary" id="mt-cancel">取消</button><button class="btn-primary" id="mt-save">确认已服</button></div>';
+    openModal(html);
+    $("mt-date").onclick = function () { openDatePicker({ mode: "single", value: sDate, onConfirm: function (d) { sDate = d; $("mt-date").textContent = d; } }); };
+    $("mt-cancel").onclick = closeModal;
+    $("mt-save").onclick = function () {
+      var t = ($("mt-time") ? $("mt-time").value : sTime) || sTime;
+      var dt = new Date(sDate + "T" + t);
+      if (isNaN(dt.getTime())) dt = new Date();
+      var next = addMedInterval(dt, +med.interval || 8, medUnit(med));
+      med.log = med.log || [];
+      med.log.push({ t: fmtDateTime(dt), status: "taken" });
+      med.nextAt = fmtDateTime(next);
+      Store.save(); closeModal(); renderLifeMain(); renderHome();
+      toast("已记录服药 · 下次 " + fmtHM(next));
+    };
+  }
 
   function renderThumb(key) {
     var L = Store.data.life;
@@ -3559,6 +3611,14 @@ function defaultData() {
       var nl = medNextLabel(L.meds[0], new Date());
       var el = document.createElement("div"); el.className = "thumb meds";
       el.innerHTML = "<b>用药 · " + esc(L.meds[0].name || "用药") + "</b><br>" + (nl.overdue ? "已逾期 · " + esc(nl.text) : "下次 " + esc(nl.text));
+      return el;
+    }
+    if (key === "sleep") {
+      var sl = Array.isArray(L.sleep) ? L.sleep : [];
+      if (!sl.length) return null;
+      var last = sl.slice().sort(function (a, b) { return ymdCmp(b.date, a.date) || (b.bedtime || "").localeCompare(a.bedtime || ""); })[0];
+      var el = document.createElement("div"); el.className = "thumb sleep";
+      el.innerHTML = "<b>睡眠 · " + esc(last.date) + "</b><br>入睡 " + esc(last.bedtime || "--:--");
       return el;
     }
     if (key === "period") {
@@ -5525,6 +5585,7 @@ function defaultData() {
     else if (key === "docs") html += lifeDocsHtml();
     else if (key === "collection") html += lifeCollectionHtml();
     else if (key === "cardwall") html += lifeCardwallHtml();
+    else if (key === "sleep") html += lifeSleepHtml();
     } catch (e) {
       html += '<p class="hint" style="color:#b00020">该模块暂时无法显示：' + esc(String((e && e.message) || e)) + '（其它功能不受影响）</p>';
     }
@@ -5669,7 +5730,7 @@ function defaultData() {
         : '<span class="med-next' + (nl.overdue ? " overdue" : "") + '">下次：' + nl.text + (nl.overdue ? "（已逾期）" : "") + (nl.overdue ? "" : ' <b class="med-cd">· ' + medCountdown(m, now) + '</b>') + '</span>';
       return '<div class="med-card' + (nl.overdue ? " overdue" : "") + '" data-mi="' + i + '" data-type="' + (isVit ? "vitamin" : "illness") + '">' +
         '<div class="med-head" data-mi="' + i + '">' +
-          '<div class="med-name-d">' + esc(m.name || "未命名") + '</div>' +
+          '<div class="med-name-d" data-mi="' + i + '">' + esc(m.name || "未命名") + '</div>' +
           '<div class="med-head-right">' +
             doseLine +
             '<button class="med-del-x" data-mi="' + i + '" title="删除用药">×</button>' +
@@ -5687,10 +5748,11 @@ function defaultData() {
           '<div class="med-settings" style="display:none;" data-mi="' + i + '">' +
             '<div class="row"><label>类型</label><select class="med-type" data-mi="' + i + '"><option value="illness"' + (!isVit ? " selected" : "") + '>生病用药</option><option value="vitamin"' + (isVit ? " selected" : "") + '>维生素</option></select></div>' +
             '<div class="row"><label>药名</label><input class="med-name" data-mi="' + i + '" value="' + esc(m.name) + '"></div>' +
-            '<div class="row"><label>间隔</label><span class="med-iv-box">每 <input type="number" min="1" class="med-iv-n" data-mi="' + i + '" value="' + iv + '"> ' + unitSel + ' 一次</span></div>' +
-            '<div class="row"><label>' + (u === "hour" ? "首次服药" : "服药时间") + '</label><input type="time" class="med-start" data-mi="' + i + '" value="' + esc(m.start || "08:00") + '"></div>' +
+            '<div class="row"><label>间隔</label><span class="med-iv-box">每<input type="number" min="1" class="med-iv-n" data-mi="' + i + '" value="' + iv + '">' + unitSel + '一次</span></div>' +
+            '<div class="row"><label>' + (u === "hour" ? "首次服药" : "服药时间") + '</label><button type="button" class="med-start-btn" data-mi="' + i + '">' + esc(m.start || "08:00") + '</button></div>' +
             (isVit ? '' : '<div class="row"><label>疗程天数</label><input type="number" class="med-days" data-mi="' + i + '" value="' + esc(m.days || 7) + '"></div>') +
             '<div class="med-set-hint">改设置后，下次时间会按新间隔重置为今天的服药时间</div>' +
+            '<button class="mini-btn primary med-save" data-mi="' + i + '">保存修改</button>' +
             '<button class="mini-btn danger med-del" data-mi="' + i + '">删除用药</button>' +
           '</div>' +
         '</div>' +
@@ -5714,6 +5776,13 @@ function defaultData() {
     return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
   }
   function medNextAt(med) {
+    // 优先按最后一次实际服药时间 + 间隔，推算真正的“下一次”
+    var log = (med.log || []).slice();
+    for (var i = log.length - 1; i >= 0; i--) {
+      if (log[i].status === "taken") {
+        return addMedInterval(new Date(log[i].t.replace(" ", "T")), +med.interval || 8, medUnit(med));
+      }
+    }
     if (med.nextAt) return new Date(med.nextAt.replace(" ", "T"));
     var parts = (med.start || "08:00").split(":");
     var d = new Date(); d.setHours(+parts[0] || 8, +parts[1] || 0, 0, 0);
@@ -5756,6 +5825,161 @@ function defaultData() {
     if (u === "week") return "每周 " + iv + " 次";
     if (u === "month") return "每月 " + iv + " 次";
     return "";
+  }
+  function sleepBelongDate(dateStr, bedtime) {
+    // 现在完全按用户所选日期记录，不再自动归前一天；同天可记多次
+    // （例如 8/31 凌晨 1:00 补记前一夜的觉 + 当晚 23:00 正常觉，两条都留在 8/31）
+    return dateStr;
+  }
+  /* ===== 睡眠记录：仅记录「哪天 + 几点入睡」，不记起床时间、不记备注 ===== */
+  function lifeSleepHtml() {
+    var rawSleep = Array.isArray(Store.data.life.sleep) ? Store.data.life.sleep : [];
+    var list = rawSleep.slice().sort(function (a, b) {
+      var c = ymdCmp(b.date, a.date);
+      return c !== 0 ? c : (b.bedtime || "").localeCompare(a.bedtime || "");
+    });
+    var view = state.sleepView || "list";
+    var tabs = '<div class="sleep-tabs">' +
+      '<button class="sleep-tab' + (view === "list" ? " active" : "") + '" data-sleep-view="list">列表</button>' +
+      '<button class="sleep-tab' + (view === "calendar" ? " active" : "") + '" data-sleep-view="calendar">日历</button>' +
+      '</div>';
+    if (!list.length) return tabs + '<p class="hint" style="background:none;box-shadow:none;margin-top:10px;">还没有睡眠记录，点下方按钮记一笔。</p><button class="mini-btn" id="ls-add">+ 记录睡眠</button>';
+    var body = '';
+    if (view === "list") {
+      body = list.map(function (s) {
+        return '<div class="sleep-card" data-sid="' + s.id + '" title="紫色竖条是睡眠记录的标识色">' +
+          '<div class="sleep-info"><div class="sleep-date">' + esc(s.date) + '</div><div class="sleep-bt">入睡 ' + esc(s.bedtime || "--:--") + '</div></div>' +
+          '<button class="mini-btn sleep-edit" data-sid="' + s.id + '">编辑</button>' +
+          '<button class="sleep-del" data-sid="' + s.id + '" title="删除">×</button>' +
+        '</div>';
+      }).join("");
+    } else {
+      body = renderSleepCalendar(list);
+    }
+    return tabs + body + '<button class="mini-btn" id="ls-add">+ 记录睡眠</button>';
+  }
+  function renderSleepCalendar(list) {
+    var now = new Date();
+    var y = (state.sleepCalY != null) ? state.sleepCalY : now.getFullYear();
+    var m = (state.sleepCalM != null) ? state.sleepCalM : now.getMonth();
+    var first = new Date(y, m, 1);
+    var startDay = first.getDay() || 7; // 周一开始
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+    var map = {};
+    list.forEach(function (s) {
+      var parts = s.date.split("-");
+      if (+parts[0] === y && +parts[1] === m + 1) {
+        (map[+parts[2]] = map[+parts[2]] || []).push(s);
+      }
+    });
+    var weeks = ['一','二','三','四','五','六','日'];
+    var html = '<div class="sleep-cal">' +
+      '<div class="sleep-cal-head">' +
+        '<button type="button" class="sleep-cal-nav" data-cal-dir="-1" title="上个月">‹</button>' +
+        '<span class="sleep-cal-title">' + y + '年' + (m + 1) + '月</span>' +
+        '<button type="button" class="sleep-cal-nav" data-cal-dir="1" title="下个月">›</button>' +
+      '</div>' +
+      '<div class="sleep-cal-grid">' + weeks.map(function (w) { return '<div class="sleep-cal-wd">' + w + '</div>'; }).join("") +
+      Array(startDay - 1).fill('<div class="sleep-cal-cell empty"></div>').join("") +
+      Array.from({ length: daysInMonth }, function (_, i) {
+        var d = i + 1;
+        var recs = map[d] || [];
+        var cls = "sleep-cal-cell" + (recs.length ? " has" : "");
+        var inner = '<div class="scd">' + d + '</div>' + recs.map(function (r) { return '<div class="sct">' + esc(r.bedtime) + '</div>'; }).join("");
+        return '<div class="' + cls + '">' + inner + '</div>';
+      }).join("") + '</div></div>';
+    return html;
+  }
+  function showSleepForm(sid) {
+    var L = Store.data.life;
+    if (!Array.isArray(L.sleep)) L.sleep = [];
+    var editing = sid ? L.sleep.filter(function (x) { return x.id === sid; })[0] : null;
+    var sDate = editing ? editing.date : todayStr();
+    var sTime = editing ? (editing.bedtime || "23:00") : "23:00";
+    var html = '<h3>' + (editing ? "编辑睡眠记录" : "记录睡眠") + '</h3>' +
+      '<div class="row"><label>日期</label><button type="button" id="ls-date-pick" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fafafa;text-align:left;cursor:pointer;">' + esc(sDate) + '</button></div>' +
+      '<p class="hint" style="margin:-6px 0 8px;font-size:12px;color:#8a8068;">日期就是这条睡眠所属的那天，可自由选择；同一天可记多次</p>' +
+      '<div class="row"><label>入睡时间</label><input id="ls-time" type="time" value="' + esc(sTime) + '" style="padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;"></div>' +
+      '<div class="form-actions"><button class="btn-secondary" id="ls-cancel">取消</button><button class="btn-primary" id="ls-save">保存</button></div>';
+    openModal(html);
+    $("ls-date-pick").onclick = function () {
+      openDatePicker({ mode: "single", value: sDate, onConfirm: function (d) { sDate = d; $("ls-date-pick").textContent = d; } });
+    };
+    $("ls-cancel").onclick = closeModal;
+    $("ls-save").onclick = function () {
+      var t = ($("ls-time") ? $("ls-time").value : "23:00") || "23:00";
+      var belong = sleepBelongDate(sDate, t);
+      if (editing) { editing.date = belong; editing.bedtime = t; }
+      else { if (!Array.isArray(L.sleep)) L.sleep = []; L.sleep.push({ id: uid(), date: belong, bedtime: t }); }
+      Store.save(); closeModal(); renderLifeMain(); renderHome();
+      toast(editing ? "已更新" : "已记录");
+    };
+  }
+  /* ===== 用药提醒：添加 / 编辑 统一弹窗 ===== */
+  function showMedForm(mid) {
+    var L = Store.data.life;
+    var editing = (mid != null && mid !== "") ? L.meds[+mid] : null;
+    var name = editing ? (editing.name || "") : "";
+    var type = editing ? (editing.type || "illness") : "illness";
+    var iv = editing ? (parseInt(editing.interval, 10) || 8) : 8;
+    var u = editing ? medUnit(editing) : "hour";
+    var start = editing ? (editing.start || "08:00") : "08:00";
+    var days = editing ? (editing.days || 7) : 7;
+    var unitSel = '<select id="mf-iv-u">' + MED_UNITS.map(function (o2) { return '<option value="' + o2.key + '"' + (u === o2.key ? " selected" : "") + '>' + o2.label + '</option>'; }).join("") + '</select>';
+    var html = '<h3>' + (editing ? "编辑用药" : "添加用药") + '</h3>' +
+      '<div class="row"><label>药名</label><input id="mf-name" value="' + esc(name) + '" placeholder="如：四季抗病毒合剂等"></div>' +
+      '<div class="row"><label>类型</label><select id="mf-type"><option value="illness"' + (type === "illness" ? " selected" : "") + '>生病用药</option><option value="vitamin"' + (type === "vitamin" ? " selected" : "") + '>维生素</option></select></div>' +
+      '<div class="row"><label>间隔</label><span class="med-iv-box">每<input type="number" min="1" id="mf-iv-n" value="' + iv + '">' + unitSel + '一次</span></div>' +
+      '<div class="row"><label>' + (u === "hour" ? "首次服药" : "服药时间") + '</label><div class="time-pick-row"><input type="time" id="mf-start" value="' + esc(start) + '"><span class="time-quick-in">' + ["08:00","12:00","14:00","18:00","20:00","22:00"].map(function (t) { return '<button type="button" class="time-q" data-t="' + t + '">' + t + '</button>'; }).join("") + '</span></div></div>' +
+      (type === "vitamin" ? '' : '<div class="row"><label>疗程天数</label><input type="number" id="mf-days" value="' + days + '"></div>') +
+      '<div class="form-actions"><button class="btn-secondary" id="mf-cancel">取消</button><button class="btn-primary" id="mf-save">保存</button></div>';
+    openModal(html);
+    $("mf-cancel").onclick = closeModal;
+    $("mf-type").onchange = function () {
+      var vit = this.value === "vitamin";
+      var dr = $("mf-days") ? $("mf-days").closest(".row") : null;
+      if (dr) dr.style.display = vit ? "none" : "";
+    };
+    Array.prototype.forEach.call(document.querySelectorAll("#modal .time-q"), function (b) {
+      b.onclick = function () { var t = b.getAttribute("data-t"); var c = $("mf-start"); if (c) c.value = (t === "bedtime") ? "22:30" : t; };
+    });
+    $("mf-save").onclick = function () {
+      var nm = ($("mf-name") ? $("mf-name").value.trim() : "");
+      if (!nm) { toast("请输入药名"); return; }
+      var obj = {
+        name: nm,
+        type: $("mf-type").value,
+        interval: parseInt($("mf-iv-n").value, 10) || 8,
+        ivUnit: $("mf-iv-u").value,
+        start: ($("mf-start") ? $("mf-start").value : "08:00") || "08:00",
+        days: parseInt($("mf-days") ? $("mf-days").value : 7, 10) || 7,
+        // 编辑时保留 nextAt；medNextAt 会基于最后一次已服记录重新计算，避免一改信息就显示“已逾期”
+        nextAt: editing ? editing.nextAt : null,
+        log: editing ? editing.log : []
+      };
+      if (editing) { var i = +mid; L.meds[i] = Object.assign(L.meds[i], obj); }
+      else { L.meds.push(Object.assign({ id: uid() }, obj)); }
+      Store.save(); closeModal(); renderLifeMain(); renderHome();
+      toast(editing ? "已更新" : "已添加");
+    };
+  }
+  /* 时间选择弹窗：常用时刻快捷 + 自定义，电脑/手机都好用（避免原生 time 输入框在电脑上难点） */
+  function openMedTimePicker(opts) {
+    opts = opts || {};
+    var val = opts.value || "08:00";
+    var html = '<h3>选择时间</h3>' +
+      '<div class="time-quick">' + ["08:00","12:00","14:00","18:00","20:00","22:00"].map(function (t) { return '<button type="button" class="time-q" data-t="' + t + '">' + t + '</button>'; }).join("") + '<button type="button" class="time-q" data-t="bedtime">睡前</button></div>' +
+      '<div class="row"><label>自定义</label><input type="time" id="tp-custom" value="' + esc(val) + '"></div>' +
+      '<div class="form-actions"><button class="btn-secondary" id="tp-cancel">取消</button><button class="btn-primary" id="tp-ok">确定</button></div>';
+    openModal(html);
+    var cur = val;
+    $("tp-cancel").onclick = closeModal;
+    $("tp-custom").oninput = function () { cur = this.value; };
+    $("tp-custom").onchange = function () { cur = this.value; };
+    Array.prototype.forEach.call(document.querySelectorAll(".time-q"), function (b) {
+      b.onclick = function () { var t = b.getAttribute("data-t"); cur = (t === "bedtime") ? "22:30" : t; var c = $("tp-custom"); if (c) c.value = cur; };
+    });
+    $("tp-ok").onclick = function () { if (opts.onConfirm) opts.onConfirm(cur); closeModal(); };
   }
   function lifeWeightHtml() {
     var w = Store.data.life.weight.slice().sort(function (a, b) { return ymdCmp(a.date, b.date); });
@@ -7829,24 +8053,19 @@ function defaultData() {
       });
 
     } else if (key === "meds") {
-      $("lm-add").onclick = function () { L.meds.push({ name: "", interval: 8, ivUnit: "hour", start: "08:00", days: 7, nextAt: null, log: [], type: "illness" }); Store.save(); renderLifeMain(); };
+      $("lm-add").onclick = function () { showMedForm(); };
       $("life-detail").querySelectorAll(".med-del").forEach(function (b) { b.onclick = function () { confirmDelete("删除用药提醒", "删除这条用药提醒？", function () { L.meds.splice(+b.getAttribute("data-mi"), 1); Store.save(); renderLifeMain(); }); }; });
       $("life-detail").querySelectorAll(".med-del-x").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); confirmDelete("删除用药提醒", "确定删除这条用药提醒？", function () { L.meds.splice(+b.getAttribute("data-mi"), 1); Store.save(); renderLifeMain(); }); }; });
       $("life-detail").querySelectorAll(".med-take").forEach(function (b) {
-        b.onclick = function () {
-          var med = L.meds[+b.getAttribute("data-mi")];
-          med.log = med.log || [];
-          med.log.push({ t: fmtDateTime(new Date()), status: "taken" });
-          med.nextAt = fmtDateTime(addMedInterval(medNextAt(med), +med.interval || 8, medUnit(med)));
-          Store.save(); renderLifeMain();
-        };
+        b.onclick = function () { openMedTake(+b.getAttribute("data-mi")); };
       });
       $("life-detail").querySelectorAll(".med-miss").forEach(function (b) {
         b.onclick = function () {
           var med = L.meds[+b.getAttribute("data-mi")];
+          var now = new Date();
           med.log = med.log || [];
-          med.log.push({ t: fmtDateTime(new Date()), status: "missed" });
-          med.nextAt = fmtDateTime(addMedInterval(medNextAt(med), +med.interval || 8, medUnit(med)));
+          med.log.push({ t: fmtDateTime(now), status: "missed" });
+          med.nextAt = fmtDateTime(addMedInterval(new Date(now.getTime()), +med.interval || 8, medUnit(med)));
           Store.save(); renderLifeMain();
         };
       });
@@ -7862,11 +8081,12 @@ function defaultData() {
           if (s) s.style.display = (s.style.display === "none") ? "block" : "none";
         };
       });
-      $("life-detail").querySelectorAll(".med-name").forEach(function (el) { el.addEventListener("change", function () { L.meds[+el.getAttribute("data-mi")].name = this.value; Store.save(); }); });
+      $("life-detail").querySelectorAll(".med-name").forEach(function (el) { el.addEventListener("input", function () { var mi = +el.getAttribute("data-mi"); L.meds[mi].name = this.value; Store.save(); var hd = $("life-detail").querySelector('.med-name-d[data-mi="'+mi+'"]'); if (hd) hd.textContent = this.value || "未命名"; }); });
       $("life-detail").querySelectorAll(".med-iv-n").forEach(function (el) { el.addEventListener("change", function () { var n = parseInt(this.value, 10); if (!n || n < 1) n = 1; L.meds[+el.getAttribute("data-mi")].interval = n; L.meds[+el.getAttribute("data-mi")].nextAt = null; Store.save(); renderLifeMain(); }); });
       $("life-detail").querySelectorAll(".med-iv-u").forEach(function (el) { el.addEventListener("change", function () { var med = L.meds[+el.getAttribute("data-mi")]; med.ivUnit = this.value; if (this.value === "hour") { if (!med.interval || med.interval > 24) med.interval = 8; } else { if (!med.interval || med.interval > 30) med.interval = 1; } med.nextAt = null; Store.save(); renderLifeMain(); }); });
-      $("life-detail").querySelectorAll(".med-start").forEach(function (el) { el.addEventListener("change", function () { L.meds[+el.getAttribute("data-mi")].start = this.value; L.meds[+el.getAttribute("data-mi")].nextAt = null; Store.save(); renderLifeMain(); }); });
       $("life-detail").querySelectorAll(".med-days").forEach(function (el) { el.addEventListener("change", function () { L.meds[+el.getAttribute("data-mi")].days = +this.value || 7; Store.save(); renderLifeMain(); }); });
+      $("life-detail").querySelectorAll(".med-start-btn").forEach(function (b) { b.onclick = function () { var mi = +b.getAttribute("data-mi"); var m = L.meds[mi]; openMedTimePicker({ value: m.start || "08:00", onConfirm: function (t) { m.start = t; m.nextAt = null; Store.save(); renderLifeMain(); } }); }; });
+      $("life-detail").querySelectorAll(".med-save").forEach(function (b) { b.onclick = function () { var mi = +b.getAttribute("data-mi"); var m = L.meds[mi]; var nmInput = $("life-detail").querySelector('.med-name[data-mi="'+mi+'"]'); if (nmInput) m.name = nmInput.value; Store.save(); renderLifeMain(); toast("已保存"); }; });
       $("life-detail").querySelectorAll(".med-head").forEach(function (h) {
         h.onclick = function () {
           var card = h.closest(".med-card");
@@ -7878,6 +8098,24 @@ function defaultData() {
           var med = L.meds[+el.getAttribute("data-mi")];
           med.type = this.value; Store.save(); renderLifeMain();
         });
+      });
+    } else if (key === "sleep") {
+      if ($("ls-add")) $("ls-add").onclick = function () { showSleepForm(); };
+      $("life-detail").querySelectorAll(".sleep-del").forEach(function (b) {
+        b.onclick = function (e) { e.stopPropagation(); confirmDelete("删除睡眠记录", "删除这条睡眠记录？", function () { var id = b.getAttribute("data-sid"); Store.data.life.sleep = Store.data.life.sleep.filter(function (x) { return x.id !== id; }); Store.save(); renderLifeMain(); renderHome(); }); };
+      });
+      $("life-detail").querySelectorAll(".sleep-edit").forEach(function (b) { b.onclick = function () { showSleepForm(b.getAttribute("data-sid")); }; });
+      $("life-detail").querySelectorAll(".sleep-tab").forEach(function (b) { b.onclick = function () { state.sleepView = b.getAttribute("data-sleep-view"); renderLifeMain(); }; });
+      $("life-detail").querySelectorAll(".sleep-cal-nav").forEach(function (b) {
+        b.onclick = function () {
+          var dir = parseInt(b.getAttribute("data-cal-dir"), 10) || 1;
+          var baseY = (state.sleepCalY != null) ? state.sleepCalY : new Date().getFullYear();
+          var baseM = (state.sleepCalM != null) ? state.sleepCalM : new Date().getMonth();
+          var d = new Date(baseY, baseM + dir, 1);
+          state.sleepCalY = d.getFullYear();
+          state.sleepCalM = d.getMonth();
+          renderLifeMain();
+        };
       });
     } else if (key === "weight") {
       var lwDate = todayStr();
@@ -11262,6 +11500,7 @@ function defaultData() {
     $("qa-period").onclick = openQuickPeriod;
     $("qa-account").onclick = openQuickAccount;
     $("qa-todo").onclick = openQuickTodo;
+    $("qa-sleep").onclick = openQuickSleep;
     $("qa-toggle").onclick = openQuickAddSettings;
 
     var pts = document.querySelectorAll(".phase");

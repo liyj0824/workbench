@@ -1679,9 +1679,18 @@ body.glass-on .sub-tabs {
 .weight-diff { font-size: calc(0.800 * var(--font-size-base)); color: var(--green-deep); background: var(--green-pale); border-radius: 12px; padding: 8px 12px; margin: 4px 0 10px; }
 .med-row { border-top: 1px dashed rgba(123,154,115,.2); padding: 10px 0; }
 .del-med { border: none; background: #f0e2df; color: var(--red); border-radius: 10px; padding: 5px 11px; font-size: calc(0.800 * var(--font-size-base)); cursor: pointer; }
-.med-iv-box { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: calc(0.933 * var(--font-size-base)); color: var(--green-dark); }
-.med-iv-box .med-iv-n { width: 58px; padding: 5px 6px; border: 1px solid rgba(123,154,115,.35); border-radius: 8px; font-size: calc(0.933 * var(--font-size-base)); font-family: inherit; text-align: center; }
+.med-iv-box { display: inline-flex; align-items: center; gap: 3px; flex-wrap: nowrap; font-size: calc(0.933 * var(--font-size-base)); color: var(--green-dark); white-space: nowrap; }
+.med-iv-box .med-iv-n { width: 52px; padding: 5px 6px; border: 1px solid rgba(123,154,115,.35); border-radius: 8px; font-size: calc(0.933 * var(--font-size-base)); font-family: inherit; text-align: center; }
 .med-iv-box .med-iv-u { padding: 5px 8px; border: 1px solid rgba(123,154,115,.35); border-radius: 8px; font-size: calc(0.933 * var(--font-size-base)); font-family: inherit; background: #fff; }
+.med-start-btn { width: 100%; padding: 8px 10px; border: 1px solid rgba(123,154,115,.4); border-radius: 8px; background: #fafafa; color: var(--green-dark); font-size: calc(0.933 * var(--font-size-base)); text-align: left; cursor: pointer; font-family: inherit; }
+.med-start-btn:hover { background: #f0f4ea; }
+.time-pick-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.time-pick-row input[type=time] { padding: 6px 8px; border: 1px solid rgba(123,154,115,.4); border-radius: 8px; font-family: inherit; font-size: calc(0.9 * var(--font-size-base)); }
+.time-quick-in { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.time-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }
+.time-q { padding: 6px 12px; border: 1px solid rgba(123,154,115,.4); border-radius: 16px; background: #fff; color: var(--green-dark); font-size: calc(0.9 * var(--font-size-base)); cursor: pointer; font-family: inherit; }
+.time-q:hover { background: #f0f4ea; }
+.time-q:active { background: var(--green); color: #fff; }
 
 /* 备忘录 */
 .memo-card { background: var(--cream); border-radius: 18px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-sm); border-left: 4px solid transparent; }
@@ -2724,7 +2733,7 @@ body.glass-on .life-card h3 {
 
 /* 首页快速记一笔 */
 .quick-add-card { background: linear-gradient(135deg,#f0f5ec,#e8f0e2); border: 1.5px solid #c5d9be; }
-.quick-add-grid { display: flex; gap: 10px; justify-content: center; }
+.quick-add-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .qa-btn { display: flex; align-items: center; gap: 6px; padding: 10px 18px; border: 1.5px solid #b8cdae; border-radius: 20px; background: #fff; color: var(--ink); font-size: calc(0.933 * var(--font-size-base)); cursor: pointer; transition: all .2s; font-family: var(--font-song); }
 .qa-btn:active { transform: scale(.96); background: #e8f0dc; border-color: var(--green-deep); }
 .qa-icon { font-size: calc(1.200 * var(--font-size-base)); }
@@ -3778,6 +3787,30 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
 .med-settings { margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(123,154,115,.25); }
 .med-set-hint { font-size: calc(0.733 * var(--font-size-base)); color: #9a9384; margin: 4px 0 10px; line-height: 1.5; }
 .med-settings .med-del { width: 100%; }
+/* 睡眠记录卡片：左侧紫色竖条代表“睡眠/夜晚”主题色，和用药卡片的绿色状态条同类 */
+.sleep-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 10px; background: #fbfaf6; border: 1px solid rgba(123,154,115,.18); border-left: 4px solid #8a92c4; border-radius: 12px; }
+.sleep-info { flex: 1; min-width: 0; }
+.sleep-date { font-size: 14px; font-weight: 700; color: var(--green-dark); }
+.sleep-bt { font-size: 13px; color: #8a8068; margin-top: 2px; }
+.sleep-edit { flex: 0 0 auto; }
+.sleep-del { flex: 0 0 auto; width: 28px; height: 28px; border: none; border-radius: 50%; background: #f0e2df; color: var(--red); font-size: 18px; line-height: 1; cursor: pointer; }
+.sleep-del:hover { background: #e9d2cd; }
+.sleep-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.sleep-tab { flex: 1; padding: 6px 0; border: 1px solid rgba(123,154,115,.3); border-radius: 20px; background: #f4f2ec; color: var(--green-dark); font-size: 13px; cursor: pointer; }
+.sleep-tab.active { background: var(--green-deep); color: #fff; border-color: var(--green-deep); }
+.sleep-cal { background: #fbfaf6; border: 1px solid rgba(123,154,115,.18); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+.sleep-cal-head { display: flex; align-items: center; justify-content: center; gap: 14px; font-weight: 700; color: var(--green-dark); margin-bottom: 10px; }
+.sleep-cal-nav { width: 30px; height: 30px; border: 1px solid rgba(123,154,115,.4); background: #fff; border-radius: 50%; font-size: 16px; line-height: 1; color: var(--green-dark); cursor: pointer; transition: background .15s; }
+.sleep-cal-nav:hover { background: rgba(123,154,115,.15); }
+.sleep-cal-nav:active { background: rgba(123,154,115,.28); }
+.sleep-cal-title { min-width: 92px; text-align: center; font-size: 15px; }
+.sleep-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+.sleep-cal-wd { font-size: 12px; color: #9a9384; padding: 4px 0; }
+.sleep-cal-cell { min-height: 42px; border-radius: 8px; padding: 3px 2px; font-size: 13px; color: var(--green-dark); background: rgba(123,154,115,.06); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1px; }
+.sleep-cal-cell.empty { background: transparent; }
+.sleep-cal-cell.has { background: rgba(138,146,196,.18); }
+.sleep-cal-cell .scd { font-weight: 700; line-height: 1.1; }
+.sleep-cal-cell .sct { font-size: 10px; color: #5c6391; line-height: 1.2; }
 
 /* 备忘：工具栏 + 完成勾选 */
 .memo-toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
