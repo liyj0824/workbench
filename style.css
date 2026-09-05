@@ -3227,6 +3227,18 @@ body.nav-sheet-open #nav-float-btn { filter: none; }
   background: #3b6d11; color: #fff; font-size: 12px; text-align: center;
   padding: 6px 10px; border-radius: 8px; margin-bottom: 8px;
 }
+/* ===== 排序手感增强 ===== */
+/* 长按不再弹出系统的「选择/复制」菜单，避免和拖拽抢手势 */
+[data-skey] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* 手指按下的瞬间就给反馈，不用干等长按判定 */
+[data-skey].pressing { transform: scale(.97); filter: brightness(.97); transition: transform 120ms ease, filter 120ms ease; }
+/* 进入排序后被按住的卡片：浮起来跟手走 */
+.drag-lift {
+  position: relative; z-index: 60;
+  transition: none !important;
+  will-change: transform;
+  box-shadow: 0 10px 22px rgba(45,70,35,.22) !important;
+}
 
 
 /* 页面切换加载反馈 */

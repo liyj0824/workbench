@@ -3545,6 +3545,32 @@ function defaultData() {
       toast("已记录服药 · 下次 " + fmtHM(next));
     };
   }
+  /* 修改某条服药 / 漏服记录的时间 */
+  function openMedLogEdit(mi, li) {
+    var med = Store.data.life.meds[mi];
+    if (!med || !med.log || !med.log[li]) return;
+    var entry = med.log[li];
+    var dt0 = new Date(entry.t.replace(" ", "T"));
+    if (isNaN(dt0.getTime())) dt0 = new Date();
+    var sDate = entry.t.slice(0, 10);
+    var sTime = ("0" + dt0.getHours()).slice(-2) + ":" + ("0" + dt0.getMinutes()).slice(-2);
+    var html = '<h3>修改记录时间</h3>' +
+      '<div class="row"><label>日期</label><button type="button" id="mle-date" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fafafa;text-align:left;cursor:pointer;">' + sDate + '</button></div>' +
+      '<div class="row"><label>时间</label><input id="mle-time" type="time" value="' + sTime + '" style="padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;"></div>' +
+      '<div class="form-actions"><button class="btn-secondary" id="mle-cancel">取消</button><button class="btn-primary" id="mle-save">保存</button></div>';
+    openModal(html);
+    $("mle-date").onclick = function () { openDatePicker({ mode: "single", value: sDate, onConfirm: function (d) { sDate = d; $("mle-date").textContent = d; } }); };
+    $("mle-cancel").onclick = closeModal;
+    $("mle-save").onclick = function () {
+      var t = ($("mle-time") ? $("mle-time").value : sTime) || sTime;
+      var dt = new Date(sDate + "T" + t);
+      if (isNaN(dt.getTime())) dt = new Date();
+      med.log[li].t = fmtDateTime(dt);
+      med.nextAt = fmtDateTime(medNextAt(med));
+      Store.save(); closeModal(); renderLifeMain(); renderHome();
+      toast("已更新记录时间");
+    };
+  }
 
   function renderThumb(key) {
     var L = Store.data.life;
@@ -3984,39 +4010,114 @@ function defaultData() {
       var t = arr[from]; arr.splice(from, 1); arr.splice(to, 0, t);
       Store.save(); after();
     });
-    /* === 手机：长摁进入排序模式，手指滑动实时重排 === */
+    /* === 手机：长摁进入排序模式，手指滑动实时重排 ===
+       手感优化：① 260ms 判定 + 按下立刻有视觉反馈（原来是干等 420ms 毫无反应）
+                 ② rAF 节流：一帧只算一次，不再每个 touchmove 都 querySelectorAll + 逐个读 rect 强制回流
+                 ③ 中线位置缓存，只有真正换位时才重新测量
+                 ④ 按住的卡片跟手位移，其余卡片 FLIP 平滑让位
+                 ⑤ 进入排序时轻微震动，接近原生 App 手感 */
     var myCat = el.getAttribute("data-cat");
     var groupSel = myCat != null ? '[data-cat="' + myCat + '"]' : '';
+    var PRESS_MS = 260, FLIP_MS = 150;
     var pressTimer = null, sorting = false, startY = 0, hint = null;
+    var grabOffset = 0, curTr = 0, wantY = 0, rafId = 0, mids = null;
+
+    function sibNodes() { return Array.prototype.slice.call(listEl.querySelectorAll("[data-skey]" + groupSel)); }
+    /* 清掉还在飞的让位动画，保证后面量到的是干净位置 */
+    function settle(nodes) {
+      nodes.forEach(function (n) {
+        if (n !== el && n.style.transform) { n.style.transition = "none"; n.style.transform = ""; }
+      });
+    }
+    function remeasure(nodes) {
+      mids = [];
+      nodes.forEach(function (n) {
+        if (n === el) return;
+        var r = n.getBoundingClientRect();
+        mids.push({ node: n, mid: r.top + r.height / 2 });
+      });
+    }
+    function applyFrame() {
+      rafId = 0;
+      if (!sorting) return;
+      var desiredTop = wantY - grabOffset;
+      var nodes = sibNodes();
+      if (!mids) { settle(nodes); remeasure(nodes); }
+      /* 1) 用缓存中线判断是否换位（避免每帧重复测量） */
+      var vMid = desiredTop + el.offsetHeight / 2;
+      var target = null;
+      for (var i = 0; i < mids.length; i++) { if (vMid < mids[i].mid) { target = mids[i].node; break; } }
+      var changed = false;
+      if (target && target !== el && target.previousSibling !== el) { listEl.insertBefore(el, target); changed = true; }
+      else if (!target && mids.length) {
+        var lastNode = mids[mids.length - 1].node;
+        if (lastNode !== el && lastNode.nextSibling !== el) { listEl.insertBefore(el, lastNode.nextSibling); changed = true; }
+      }
+      /* 2) 换位后：让位的卡片用 FLIP 平滑滑动 */
+      if (changed) {
+        var old = mids;
+        settle(nodes);
+        remeasure(nodes);
+        old.forEach(function (o) {
+          var r = o.node.getBoundingClientRect();
+          var dy = o.mid - (r.top + r.height / 2);
+          if (!dy) return;
+          o.node.style.transition = "none";
+          o.node.style.transform = "translateY(" + dy + "px)";
+        });
+        requestAnimationFrame(function () {
+          old.forEach(function (o) {
+            if (!o.node.style.transform) return;
+            o.node.style.transition = "transform " + FLIP_MS + "ms cubic-bezier(.22,.85,.3,1)";
+            o.node.style.transform = "";
+          });
+        });
+      }
+      /* 3) 被按住的卡片跟手（减掉已施加的位移，拿到真实布局位置） */
+      var rect = el.getBoundingClientRect();
+      curTr = desiredTop - (rect.top - curTr);
+      el.style.transform = "translateY(" + curTr + "px)";
+    }
     el.addEventListener("touchstart", function (e) {
       if (sorting) return;
       startY = e.touches[0].clientY;
+      el.classList.add("pressing");
       pressTimer = setTimeout(function () {
         sorting = true;
-        el.classList.add("sorting"); listEl.classList.add("sort-mode");
+        el.classList.remove("pressing");
+        el.classList.add("sorting", "drag-lift");
+        listEl.classList.add("sort-mode");
         hint = document.createElement("div"); hint.className = "sort-hint"; hint.textContent = "排序模式 · 拖动重排，松手完成";
         if (listEl.parentNode) listEl.parentNode.insertBefore(hint, listEl);
-      }, 420);
+        el.style.transition = "none"; el.style.transform = "";
+        curTr = 0;
+        grabOffset = startY - el.getBoundingClientRect().top;
+        wantY = startY;
+        mids = null;
+        try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) {}
+      }, PRESS_MS);
     }, { passive: true });
     el.addEventListener("touchmove", function (e) {
-      if (!sorting) { if (Math.abs(e.touches[0].clientY - startY) > 8) clearTimeout(pressTimer); return; }
-      e.preventDefault();
-      var y = e.touches[0].clientY;
-      var sibs = Array.prototype.slice.call(listEl.querySelectorAll("[data-skey]" + groupSel));
-      var target = null;
-      for (var i = 0; i < sibs.length; i++) {
-        var r = sibs[i].getBoundingClientRect();
-        if (y < r.top + r.height / 2) { target = sibs[i]; break; }
+      if (!sorting) {
+        if (Math.abs(e.touches[0].clientY - startY) > 8) { clearTimeout(pressTimer); el.classList.remove("pressing"); }
+        return;
       }
-      if (target && target !== el) listEl.insertBefore(el, target);
-      else if (!target) { var last = sibs[sibs.length - 1]; if (last && last !== el) listEl.insertBefore(el, last.nextSibling); }
+      e.preventDefault();
+      wantY = e.touches[0].clientY;
+      if (!rafId) rafId = requestAnimationFrame(applyFrame);
     }, { passive: false });
     function endSort() {
       clearTimeout(pressTimer);
+      el.classList.remove("pressing");
       if (!sorting) return;
-      sorting = false; el.classList.remove("sorting"); listEl.classList.remove("sort-mode");
+      sorting = false;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+      el.classList.remove("sorting", "drag-lift");
+      el.style.transition = ""; el.style.transform = "";
+      listEl.classList.remove("sort-mode");
+      sibNodes().forEach(function (n) { n.style.transition = ""; n.style.transform = ""; });
       if (hint && hint.parentNode) hint.parentNode.removeChild(hint);
-      var nodes = Array.prototype.slice.call(listEl.querySelectorAll("[data-skey]" + groupSel));
+      var nodes = sibNodes();
       var map = {}; arr.forEach(function (x) { map[keyOf(x)] = x; });
       var next = nodes.map(function (n) { return map[n.dataset.skey]; }).filter(Boolean);
       arr.length = 0; next.forEach(function (x) { arr.push(x); });
@@ -5716,11 +5817,13 @@ function defaultData() {
       var planLine = (u === "hour")
         ? ("每 " + iv + " 小时一次 · 首次 " + esc(m.start || "08:00") + (isVit ? "" : " · 疗程 " + (m.days || 7) + " 天"))
         : ("每 " + iv + " " + medUnitLabel(u) + " 一次 · " + esc(m.start || "08:00") + (isVit ? "" : " · 疗程 " + (m.days || 7) + " 天"));
-      var logHtml = (m.log || []).slice().reverse().map(function (e) {
+      var logArr = (m.log || []).slice();
+      var logHtml = logArr.slice().reverse().map(function (e, idx) {
+        var li = logArr.length - 1 - idx;
         var d = new Date(e.t.replace(" ", "T"));
         var tag = e.status === "taken" ? "status-taken" : "status-missed";
         var sym = e.status === "taken" ? "✓" : "✗";
-        return '<span class="' + tag + '">' + sym + " " + fmtDateShort(d) + " " + fmtHM(d) + (e.status === "taken" ? " 已服" : " 漏服") + "</span>";
+        return '<span class="' + tag + ' med-log-edit" data-mi="' + i + '" data-li="' + li + '" title="点击修改这条记录的时间">✎ ' + sym + " " + fmtDateShort(d) + " " + fmtHM(d) + (e.status === "taken" ? " 已服" : " 漏服") + "</span>";
       }).join("");
       var unitSel = '<select class="med-iv-u" data-mi="' + i + '">' +
         MED_UNITS.map(function (o2) { return '<option value="' + o2.key + '"' + (u === o2.key ? " selected" : "") + '>' + o2.label + '</option>'; }).join("") +
@@ -5895,7 +5998,8 @@ function defaultData() {
     if (!Array.isArray(L.sleep)) L.sleep = [];
     var editing = sid ? L.sleep.filter(function (x) { return x.id === sid; })[0] : null;
     var sDate = editing ? editing.date : todayStr();
-    var sTime = editing ? (editing.bedtime || "23:00") : "23:00";
+    var nowHM = ("0" + new Date().getHours()).slice(-2) + ":" + ("0" + new Date().getMinutes()).slice(-2);
+    var sTime = editing ? (editing.bedtime || "23:00") : nowHM;
     var html = '<h3>' + (editing ? "编辑睡眠记录" : "记录睡眠") + '</h3>' +
       '<div class="row"><label>日期</label><button type="button" id="ls-date-pick" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fafafa;text-align:left;cursor:pointer;">' + esc(sDate) + '</button></div>' +
       '<p class="hint" style="margin:-6px 0 8px;font-size:12px;color:#8a8068;">日期就是这条睡眠所属的那天，可自由选择；同一天可记多次</p>' +
@@ -8073,6 +8177,12 @@ function defaultData() {
         b.onclick = function () {
           var log = $("life-detail").querySelector('.med-log[data-mi="' + b.getAttribute("data-mi") + '"]');
           if (log) log.style.display = (log.style.display === "none") ? "block" : "none";
+        };
+      });
+      $("life-detail").querySelectorAll(".med-log-edit").forEach(function (b) {
+        b.onclick = function (e) {
+          e.stopPropagation();
+          openMedLogEdit(+b.getAttribute("data-mi"), +b.getAttribute("data-li"));
         };
       });
       $("life-detail").querySelectorAll(".med-set-toggle").forEach(function (b) {
